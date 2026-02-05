@@ -6,7 +6,7 @@ import {
   FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown 
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
-import Swal from 'sweetalert2'; // ✅ This was missing!
+import Swal from 'sweetalert2';
 
 const RestaurantPage = () => {
   const { restaurantSlug } = useParams();
@@ -29,7 +29,6 @@ const RestaurantPage = () => {
 
   const sidebarRef = useRef(null);
 
-  // Scroll Spy Logic
   useEffect(() => {
     if (isUserFiltering || searchTerm !== '') return;
     const observerOptions = { root: null, rootMargin: '-20% 0px -60% 0px', threshold: 0 };
@@ -65,41 +64,40 @@ const RestaurantPage = () => {
     }
   };
 
-  // ✅ FIXED: handleAddToCart Logic
-  const handleAddToCart = (product, id) => {
-    // 1. Context Update
-    addToCart(product, restaurantSlug);
-    
-    // 2. Button Animation States
-    setTickedId(id);
-    setIsCartBouncing(true);
+  // ✅ FIXED handleAddToCart
+  const handleAddToCart = async (product, id) => {
+    try {
+      const result = await addToCart(product, restaurantSlug);
+      
+      // শুধুমাত্র 'success' হলেই পরবর্তী কাজগুলো হবে
+      if (result && result.status === 'success') {
+        setTickedId(id);
+        setIsCartBouncing(true);
 
-    // 3. Toast Message
-    const Toast = Swal.mixin({
-      toast: true,
-      position: 'top-end',
-      showConfirmButton: false,
-      timer: 1500,
-      timerProgressBar: true,
-      didOpen: (toast) => {
-        toast.onmouseenter = Swal.stopTimer;
-        toast.onmouseleave = Swal.resumeTimer;
+        const Toast = Swal.mixin({
+          toast: true,
+          position: 'bottom-center',
+          showConfirmButton: false,
+          timer: 1500,
+          timerProgressBar: true,
+        });
+
+        Toast.fire({
+          icon: 'success',
+          title: `${product.name} added!`,
+          background: '#1a1a1a',
+          color: '#fff',
+          iconColor: '#22c55e',
+        });
+
+        setTimeout(() => { 
+          setTickedId(null); 
+          setIsCartBouncing(false); 
+        }, 1000);
       }
-    });
-
-    Toast.fire({
-      icon: 'success',
-      title: `${product.name} added to basket!`,
-      background: '#fff',
-      color: '#000',
-      iconColor: '#22c55e',
-    });
-
-    // 4. Reset Button after 1 second
-    setTimeout(() => { 
-      setTickedId(null); 
-      setIsCartBouncing(false); 
-    }, 1000);
+    } catch (error) {
+      console.error("Error adding to cart:", error);
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -131,7 +129,10 @@ const RestaurantPage = () => {
     return prods;
   }, [searchTerm, activeCategory, isUserFiltering]);
 
-  const cartTotalItems = cart?.reduce((total, item) => total + item.quantity, 0) || 0;
+  // ✅ Reliable Item Count
+  const cartTotalItems = useMemo(() => {
+    return Array.isArray(cart) ? cart.reduce((total, item) => total + (item.quantity || 0), 0) : 0;
+  }, [cart]);
 
   return (
     <div className="bg-[#fcfcfc] min-h-screen pb-32 font-inter overflow-x-hidden">
@@ -140,6 +141,8 @@ const RestaurantPage = () => {
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .green-pop { animation: pop 0.4s ease forwards; background: #22c55e !important; color: white !important; }
         @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
+        .cart-bounce { animation: cartBounce 0.5s ease; }
+        @keyframes cartBounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
       `}</style>
 
       {/* Hero Section */}
@@ -202,7 +205,6 @@ const RestaurantPage = () => {
                   <div className="aspect-square relative overflow-hidden rounded-[35px]">
                     <img src={product.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
                     
-                    {/* ✅ CLICKABLE BUTTON */}
                     <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product, product.id); }}
                       className={`absolute top-4 right-4 w-14 h-14 rounded-[22px] flex items-center justify-center shadow-xl z-10 transition-all
                       ${tickedId === product.id ? 'green-pop' : 'bg-white/90 backdrop-blur-md text-[#be1e2d] hover:bg-[#be1e2d] hover:text-white'}`}>
@@ -229,16 +231,20 @@ const RestaurantPage = () => {
         </div>
       </div>
 
-      {/* Floating Cart UI Area */}
-      {cartTotalItems > 0 && (
+      {/* ✅ PERSISTENT Floating Cart UI */}
+      {/* z-index অনেক বাড়ানো হয়েছে এবং লজিক চেক করা হয়েছে */}
+      <div className={`fixed bottom-8 right-8 z-[9999] transition-all duration-500 ${cartTotalItems > 0 ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 translate-y-20'}`}>
         <Link to={`/cart/${restaurantSlug}/ConfirmCart`} 
-          className={`fixed bottom-6 right-6 w-20 h-20 md:w-32 md:h-32 rounded-[30px] md:rounded-[45px] flex items-center justify-center shadow-2xl z-[5000] border-8 border-white bg-[#be1e2d] transition-all ${isCartBouncing ? 'scale-110' : 'hover:rotate-6'}`}>
+          className={`w-20 h-20 md:w-32 md:h-32 rounded-[30px] md:rounded-[45px] flex items-center justify-center shadow-[0_20px_50px_rgba(190,30,45,0.3)] border-8 border-white bg-[#be1e2d] transition-all duration-300
+          ${isCartBouncing ? 'cart-bounce' : 'hover:rotate-6 active:scale-90'}`}>
           <div className="relative">
             <FaShoppingCart className="text-white text-3xl md:text-5xl" />
-            <span className="absolute -top-3 -right-3 md:-top-5 md:-right-5 bg-black text-white text-[10px] md:text-sm font-black w-8 h-8 md:w-14 md:h-14 rounded-full flex items-center justify-center border-4 border-[#be1e2d]">{cartTotalItems}</span>
+            <span className="absolute -top-3 -right-3 md:-top-5 md:-right-5 bg-black text-white text-[10px] md:text-sm font-black w-8 h-8 md:w-14 md:h-14 rounded-full flex items-center justify-center border-4 border-[#be1e2d] animate-bounce">
+              {cartTotalItems}
+            </span>
           </div>
         </Link>
-      )}
+      </div>
 
       {/* Modal */}
       {selectedProduct && (

@@ -16,49 +16,77 @@ export const CartProvider = ({ children }) => {
     sessionStorage.setItem('global_cart_data', JSON.stringify(cart));
   }, [cart]);
 
-  const addToCart = (product, restaurantSlug) => {
-    const uniqueRestaurants = [new Set(cart.map(item => item.restaurantSlug))];
-    const isNewVendor = uniqueRestaurants.length > 0 && !uniqueRestaurants.includes(restaurantSlug);
+  // async করা হয়েছে কারণ Swal.fire একটি প্রমিজ
+  const addToCart = async (product, restaurantSlug) => {
+    const existingRestaurantSlugs = cart.map(item => item.restaurantSlug);
+    const isNewVendor = existingRestaurantSlugs.length > 0 && !existingRestaurantSlugs.includes(restaurantSlug);
 
-    // DINE-IN RESTRICTION
+    // 1. DINE-IN RESTRICTION (SweetAlert)
     if (orderType === 'Dine-In' && isNewVendor) {
-      alert(" Dine-in orders are restricted to one restaurant at a time.");
+      await Swal.fire({
+        icon: 'error',
+        title: 'Restricted Action',
+        text: 'Dine-in orders are restricted to one restaurant at a time.',
+        confirmButtonColor: '#be1e2d',
+      });
       return { status: 'error' };
     }
 
-    // MULTI-VENDOR ALERT
+    // 2. MULTI-VENDOR ALERT (SweetAlert Confirm Box)
     if (isNewVendor) {
-      const proceed = window.confirm(" You are adding items from a different restaurant. Separate delivery charges will apply for each store. Do you want to continue?");
-      if (!proceed) return { status: 'cancelled' };
+      const result = await Swal.fire({
+        title: 'Different Restaurant?',
+        text: "You are adding items from a different restaurant. Separate delivery charges will apply for each store. Do you want to continue?",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#be1e2d',
+        cancelButtonColor: '#6e7881',
+        confirmButtonText: 'Yes, continue',
+        cancelButtonText: 'No, cancel'
+      });
+
+      if (!result.isConfirmed) {
+        return { status: 'cancelled' };
+      }
     }
 
+    // 3. CART UPDATE LOGIC (Same as before)
     setCart((prevCart) => {
-      const existingItem = prevCart.find(
+      const existingItemIndex = prevCart.findIndex(
         (item) => item.name === product.name && item.restaurantSlug === restaurantSlug
       );
-      if (existingItem) {
-        return prevCart.map((item) =>
-          item.name === product.name && item.restaurantSlug === restaurantSlug
-            ? { item, quantity: item.quantity + 1 } : item
-        );
+
+      if (existingItemIndex !== -1) {
+        const updatedCart = [...prevCart];
+        updatedCart[existingItemIndex] = {
+          ...updatedCart[existingItemIndex],
+          quantity: updatedCart[existingItemIndex].quantity + 1
+        };
+        return updatedCart;
       }
-      return [prevCart, { product, quantity: 1, restaurantSlug }];
+
+      return [...prevCart, { ...product, quantity: 1, restaurantSlug }];
     });
+
     return { status: 'success' };
   };
 
   const updateQuantity = (productName, restaurantSlug, delta) => {
-    setCart((prevCart) => prevCart.map((item) => {
+    setCart((prevCart) => 
+      prevCart.map((item) => {
         if (item.name === productName && item.restaurantSlug === restaurantSlug) {
           const newQty = item.quantity + delta;
-          return newQty > 0 ? { item, quantity: newQty } : null;
+          return newQty > 0 ? { ...item, quantity: newQty } : null;
         }
         return item;
       }).filter(Boolean)
     );
   };
 
-  const clearCart = () => { setCart([]); sessionStorage.removeItem('global_cart_data'); };
+  const clearCart = () => { 
+    setCart([]); 
+    sessionStorage.removeItem('global_cart_data'); 
+  };
 
   return (
     <CartContext.Provider value={{ cart, addToCart, updateQuantity, clearCart, orderType, setOrderType }}>
