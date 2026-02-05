@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme{
+  --font-sans: "Inter", ui-sans-serif, system-ui;
+  --font-gilroy: "Gilroy", sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-gilroy);
+    background-color: #fcfdfe;
+    color: #0f172a;
+  }
+}
+.swal2-popup {
+  font-family: 'Inter', sans-serif !important;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

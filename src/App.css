@@ -1,0 +1,30 @@
+/* সরাসরী HTML এবং Body স্টাইল */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: #fcfdfe;
+  color: #0f172a; /* text-slate-900 এর সমতুল্য */
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
+
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #b02532;
+  border-radius: 10px;
+}
+
+/* স্লাইডার বা এনিমেশনের কারণে সাইড স্ক্রল বন্ধ করতে */
+.App {
+  width: 100%;
+  overflow-x: hidden;
+}
