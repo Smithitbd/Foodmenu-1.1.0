@@ -16,7 +16,6 @@ const DashboardLayout = () => {
   const [isStoreOpen, setIsStoreOpen] = useState(true);
   const [newOrders, setNewOrders] = useState(3);
 
-  // State for open Sub-menu
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -60,39 +59,50 @@ const DashboardLayout = () => {
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1 custom-scrollbar">
           
           {/* 1. Dashboard */}
-          <Link to="/restaurantadmin" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin" 
+            title={!isSidebarOpen ? "Dashboard" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><LayoutDashboard size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Dashboard</span></div>}
           </Link>
 
           {/* 2. Manage Shop */}
-          <Link to="/restaurantadmin/manage-shop" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/manage-shop' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/manage-shop" 
+            title={!isSidebarOpen ? "Manage Shop" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/manage-shop' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/manage-shop' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><Store size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Manage Shop</span></div>}
           </Link>
 
           {/* 3. Delivery Area */}
-          <Link to="/restaurantadmin/delivery-area" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/delivery-area' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/delivery-area" 
+            title={!isSidebarOpen ? "Delivery Area" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/delivery-area' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/delivery-area' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><MapPin size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Delivery Area</span></div>}
           </Link>
 
           {/* 4. Menu Category */}
-          <Link to="/restaurantadmin/category" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/category' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/category" 
+            title={!isSidebarOpen ? "Menu Category" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/category' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/category' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><Menu size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Menu Category</span></div>}
           </Link>
-
-          {/* 5. Add Delivery Charge 
-          <Link to="/restaurantadmin/delivery-charge" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/delivery-charge' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
-            <span className={`${location.pathname === '/restaurantadmin/delivery-charge' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><PlusCircle size={20} /></span>
-            {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Add Delivery Charge</span></div>}
-          </Link>*/}
 
           {/* 6. --- Dropdown: Menu --- */}
           <div className="py-1">
             <button
               onClick={() => isSidebarOpen && setIsMenuOpen(!isMenuOpen)}
+              title={!isSidebarOpen ? "Menu" : ""}
               className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/restaurantadmin/menu') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
             >
               <Utensils size={20} className={location.pathname.includes('/restaurantadmin/menu') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -116,13 +126,21 @@ const DashboardLayout = () => {
           </div>
 
           {/* 7. Cart List */}
-          <Link to="/restaurantadmin/cart" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/cart' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/cart" 
+            title={!isSidebarOpen ? "Cart List" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/cart' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/cart' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><ShoppingCart size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Cart List</span></div>}
           </Link>
 
           {/* 8. Available Food */}
-          <Link to="/restaurantadmin/available" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/available' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/available" 
+            title={!isSidebarOpen ? "Available Food" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/available' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/available' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><CheckCircle size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Available Food</span></div>}
           </Link>
@@ -131,6 +149,7 @@ const DashboardLayout = () => {
           <div className="py-1">
             <button
               onClick={() => isSidebarOpen && setIsOrderOpen(!isOrderOpen)}
+              title={!isSidebarOpen ? "Order Food" : ""}
               className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/restaurantadmin/orderslists') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
             >
               <ShoppingCart size={20} className={location.pathname.includes('/restaurantadmin/orderslists') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -157,6 +176,7 @@ const DashboardLayout = () => {
           <div className="py-1">
             <button
               onClick={() => isSidebarOpen && setIsReportOpen(!isReportOpen)}
+              title={!isSidebarOpen ? "Sales Report" : ""}
               className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/restaurantadmin/reports') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
             >
               <BarChart3 size={20} className={location.pathname.includes('/restaurantadmin/reports') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -180,13 +200,21 @@ const DashboardLayout = () => {
           </div>
 
           {/* 11. Add Offer */}
-          <Link to="/restaurantadmin/offers" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/offers' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/offers" 
+            title={!isSidebarOpen ? "Add Offer" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/offers' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/offers' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><Gift size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Add Offer</span></div>}
           </Link>
 
           {/* 12. Registration */}
-          <Link to="/restaurantadmin/registration" className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/registration' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}>
+          <Link 
+            to="/restaurantadmin/registration" 
+            title={!isSidebarOpen ? "Registration" : ""}
+            className={`flex items-center p-3.5 rounded-xl transition-all group ${location.pathname === '/restaurantadmin/registration' ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
+          >
             <span className={`${location.pathname === '/restaurantadmin/registration' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><UserCircle size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Registration</span></div>}
           </Link>

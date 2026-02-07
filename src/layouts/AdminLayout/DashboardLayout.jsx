@@ -134,6 +134,7 @@ const SidebarContent = ({ isSidebarOpen, location }) => {
       <div className="py-1">
         <button
           onClick={() => isSidebarOpen && setIsAreaOpen(!isAreaOpen)}
+          title={!isSidebarOpen ? "Restaurant Area" : ""}
           className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/admin/area') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
         >
           <MapPin size={20} className={location.pathname.includes('/admin/area') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -162,6 +163,7 @@ const SidebarContent = ({ isSidebarOpen, location }) => {
       <div className="py-1">
         <button
           onClick={() => isSidebarOpen && setIsSalesOpen(!isSalesOpen)}
+          title={!isSidebarOpen ? "Sales Report" : ""}
           className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/admin/sales') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
         >
           <BarChart3 size={20} className={location.pathname.includes('/admin/sales') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -194,6 +196,7 @@ const MenuLink = ({ item, isSidebarOpen, location }) => {
   return (
     <Link 
       to={item.path} 
+      title={!isSidebarOpen ? item.name : ""}
       className={`flex items-center p-3.5 rounded-xl transition-all group ${isActive ? 'bg-red-600 text-white shadow-lg shadow-red-900/20' : 'hover:bg-gray-800/50 hover:text-white'}`}
     >
       <span className={`${isActive ? 'text-white' : 'text-gray-400 group-hover:text-red-500'} transition-colors duration-300`}>
