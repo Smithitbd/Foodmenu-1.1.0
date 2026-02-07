@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { FaMotorcycle, FaLock, FaCheck, FaUser, FaStore, FaDotCircle, FaTimes, FaStar, FaReceipt, FaChair, FaMapMarkerAlt } from "react-icons/fa";
+import Swal from 'sweetalert2';
 
 const OrderTrackerWidget = () => {
   const [activeOrder, setActiveOrder] = useState(null);
@@ -176,18 +177,38 @@ const OrderTrackerWidget = () => {
                     <span className="text-base font-black text-red-700 tracking-tighter">৳{activeOrder.grandTotal}</span>
                 </div>
                 <button
-                    onClick={() => {
-                        if(window.confirm("Confirm All Received?")) {
-                            localStorage.removeItem("activeOrder");
-                            window.dispatchEvent(new Event("orderUpdated"));
-                            setActiveOrder(null);
-                            setIsOpen(false);
-                        }
-                    }}
-                    className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-black flex items-center justify-center gap-2"
-                >
-                    <FaCheck /> Confirm All Received
-                </button>
+    onClick={() => {
+        Swal.fire({
+            title: 'Confirm All Received?',
+            text: "This will clear your active order status!",
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#0F172A', // bg-slate-900 color
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Yes, Received!',
+            borderRadius: '20px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                localStorage.removeItem("activeOrder");
+                window.dispatchEvent(new Event("orderUpdated"));
+                setActiveOrder(null);
+                setIsOpen(false);
+
+                Swal.fire({
+                    title: 'Confirmed!',
+                    text: 'Your order has been updated.',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    borderRadius: '20px'
+                });
+            }
+        });
+    }}
+    className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all hover:bg-black flex items-center justify-center gap-2"
+>
+    <FaCheck /> Confirm All Received
+</button>
             </div>
           </div>
         </>

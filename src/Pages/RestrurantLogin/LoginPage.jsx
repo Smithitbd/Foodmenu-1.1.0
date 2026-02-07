@@ -28,7 +28,6 @@ const LoginPage = () => {
       // ... logic
     }
     */
-
     // For check logic and path
     setTimeout(() => {
       setIsLoading(false);
@@ -44,9 +43,9 @@ const LoginPage = () => {
           background: '#fff',
           color: '#0f172a'
         });
-        
         // If Successfull
         navigate('/restaurantadmin');
+
       } else {
         // If unsuccessfull
         Swal.fire({
@@ -56,7 +55,7 @@ const LoginPage = () => {
           confirmButtonColor: '#ef4444'
         });
       }
-    }, 1500); // For loading feel 15.sec delay
+    }, 1500); // For loading feel 1.5sec delay
   };
 
   return (
