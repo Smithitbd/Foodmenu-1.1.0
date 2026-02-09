@@ -5,57 +5,47 @@ import { FaEnvelope, FaLock, FaEye, FaEyeSlash, FaGoogle, FaFacebookF } from 're
 import Swal from 'sweetalert2'; 
 import axios from 'axios'; 
 
-
 const LoginPage = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   // Default Email and Pass
-  const [email, setEmail] = useState('a@gmail.com');
-  const [password, setPassword] = useState('12345');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
-    /* --- BACKEND INTEGRATION LOGIC (Future) --- */
-    /*
     try {
-      const response = await axios.post('your-api-endpoint/login', { email, password });
-      // ... logic
-    } catch (error) {
-      // ... logic
-    }
-    */
-    // For check logic and path
-    setTimeout(() => {
-      setIsLoading(false);
-      
-      // Crosscheck Email and password
-      if (email === 'a@gmail.com' && password === '12345') {
+      const response = await axios.post('http://localhost:5000/api/login', {
+         email : email,
+         password: password 
+        });
+      if(response.status === 200){
+        setIsLoading(false);
         Swal.fire({
-          icon: 'success',
-          title: 'Welcome Back!',
-          text: 'Login successful. Moving to Admin Dashboard...',
+          icon : 'success',
+          title : 'Welcome Back..!',
+          text: `Hello ${response.data.user.name}, Login Successfully..!`,
           timer: 1500,
-          showConfirmButton: false,
-          background: '#fff',
-          color: '#0f172a'
+          showConfirmButton : false
         });
-        // If Successfull
+        //store user data in localstorage
+        localStorage.setItem('user',JSON.stringify(response.data.user));
         navigate('/restaurantadmin');
-
-      } else {
-        // If unsuccessfull
-        Swal.fire({
-          icon: 'error',
-          title: 'Login Error',
-          text: 'The email or password you entered is incorrect.',
-          confirmButtonColor: '#ef4444'
-        });
       }
-    }, 1500); // For loading feel 1.5sec delay
+    } catch (error) {
+      setIsLoading(false);
+
+      Swal.fire({
+        icon : 'error',
+        title : 'Login Failed..',
+        text: error.response?.data?.message || 'The email or password you entered is incorrect.',
+        confirmButtonColor: '#ef4444'
+      });
+    }
   };
 
   return (

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+import Swal from 'sweetalert2';
 import { 
   FaStore, FaUser, FaMapMarkerAlt, FaGlobe, FaIdCard, FaPhone,
   FaCalendarAlt, FaCheckCircle, FaArrowRight, FaArrowLeft, 
@@ -23,6 +25,43 @@ const AddMenuForm = () => {
     setIsVerified(false);
     setScanError("");
   }, [formData.idFormat, formData.idType, setIsVerified]);
+
+  const handleFinish = async() =>{
+    //create the slug
+    const slug = formData.restaurantName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    Swal.fire({
+      title:'Registering...',
+      text: 'Please wait for sometime while we set up your restaurant.',
+      allowOutsideClick:false,
+      didOpen:() => {Swal.showLoading();}
+    });
+
+    try{
+      const response = await axios.post('http://localhost:5000/api/register-restaurant',{
+        owner_name: formData.ownerName,
+        owner_email: formData.email,
+        owner_password: formData.password,
+        restaurant_name: formData.restaurantName,
+        slug: slug,
+        location: formData.ownerAddress
+      });
+      if (response.status === 201) {
+        Swal.fire({
+          icon: 'success',
+          title: 'Success!',
+          text: 'Restaurant register successfully!',
+          timer: 2000,
+          showConfirmButton: false
+        }).then(() => { navigate('/login'); });
+      }
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.message || 'Something went wrong!',
+      });
+    }
+  };
 
   const performOCR = async (file) => {
     if (!formData.ownerName || formData.ownerName.length < 3) {
@@ -237,7 +276,7 @@ const AddMenuForm = () => {
               {step > 1 && <button onClick={() => setStep(step - 1)} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Back</button>}
               <motion.button 
                 whileTap={{ scale: 0.98 }}
-                onClick={step === 6 ? () => navigate('/login') : nextStep}
+                onClick={step === 6 ? handleFinish : nextStep}
                 disabled={!canNextStep()}
                 className={`flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${canNextStep() ? 'bg-slate-900 hover:bg-red-600' : 'bg-slate-200 cursor-not-allowed text-slate-400 shadow-none'}`}
               >
