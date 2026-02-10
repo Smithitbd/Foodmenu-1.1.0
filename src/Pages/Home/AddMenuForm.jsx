@@ -6,7 +6,7 @@ import Swal from 'sweetalert2';
 import { 
   FaStore, FaUser, FaMapMarkerAlt, FaGlobe, FaIdCard, FaPhone,
   FaCalendarAlt, FaCheckCircle, FaArrowRight, FaArrowLeft, 
-  FaLock, FaCloudUploadAlt, FaEnvelope, FaSpinner, FaExclamationTriangle, FaEdit,
+  FaLock, FaCloudUploadAlt, FaEnvelope, FaSpinner, FaEdit,
   FaRegImage, FaFilePdf 
 } from 'react-icons/fa';
 import Tesseract from 'tesseract.js';
@@ -26,30 +26,41 @@ const AddMenuForm = () => {
     setScanError("");
   }, [formData.idFormat, formData.idType, setIsVerified]);
 
-  const handleFinish = async() =>{
-    //create the slug
+  // --- UPDATED HANDLE FINISH ---
+const handleFinish = async () => {
     const slug = formData.restaurantName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    
     Swal.fire({
-      title:'Registering...',
-      text: 'Please wait for sometime while we set up your restaurant.',
-      allowOutsideClick:false,
-      didOpen:() => {Swal.showLoading();}
+      title: 'Registering...',
+      text: 'Please wait while we set up your restaurant.',
+      allowOutsideClick: false,
+      didOpen: () => { Swal.showLoading(); }
     });
 
-    try{
-      const response = await axios.post('http://localhost:5000/api/register-restaurant',{
-        owner_name: formData.ownerName,
-        owner_email: formData.email,
-        owner_password: formData.password,
-        restaurant_name: formData.restaurantName,
-        slug: slug,
-        location: formData.ownerAddress
-      });
+    // FormData অবজেক্ট তৈরি
+    const data = new FormData();
+    data.append('owner_name', formData.ownerName);
+    data.append('owner_email', formData.email);
+    data.append('owner_password', formData.password);
+    data.append('restaurant_name', formData.restaurantName);
+    data.append('slug', slug);
+    data.append('location', formData.ownerAddress);
+    
+    // ফাইলগুলো যুক্ত করা
+    if (formData.logo) data.append('logo', formData.logo);
+    if (formData.idFileFront) data.append('idFileFront', formData.idFileFront);
+    if (formData.idFilePdf) data.append('idFilePdf', formData.idFilePdf);
+
+    try {
+      const response = await axios.post('http://localhost:5000/api/register-restaurant', data, {
+    headers: { 'Content-Type': 'multipart/form-data' } 
+    });
+
       if (response.status === 201) {
         Swal.fire({
           icon: 'success',
           title: 'Success!',
-          text: 'Restaurant register successfully!',
+          text: 'Restaurant registered successfully!',
           timer: 2000,
           showConfirmButton: false
         }).then(() => { navigate('/login'); });
@@ -57,7 +68,7 @@ const AddMenuForm = () => {
     } catch (error) {
       Swal.fire({
         icon: 'error',
-        title: 'Error',
+        title: 'Registration Failed',
         text: error.response?.data?.message || 'Something went wrong!',
       });
     }
@@ -100,11 +111,11 @@ const AddMenuForm = () => {
     const file = e.target.files[0];
     if (!file) return;
     updateFormData({ [field]: file });
-    if (step === 3 && (field === 'idFileFront' || field === 'idFilePdf') && formData.idFormat === 'Photo') performOCR(file);
+    // OCR শুধুমাত্র ID Front ফটোর জন্য কাজ করবে
+    if (step === 3 && (field === 'idFileFront') && formData.idFormat === 'Photo') performOCR(file);
   };
 
   const canNextStep = () => {
-    // UPDATED: address -> ownerAddress
     if (step === 1) return formData.restaurantName && formData.ownerName && formData.ownerContact && formData.ownerAddress && formData.dob;
     if (step === 2) return formData.officeAddress && formData.category && formData.resContact && formData.logo && formData.logoType;
     if (step === 3) {
@@ -167,7 +178,6 @@ const AddMenuForm = () => {
                     <Input label="Owner Name *" icon={<FaUser/>} value={formData.ownerName} onChange={(v)=>handleInputChange('ownerName', v)} />
                     <Input label="Owner Contact *" icon={<FaPhone/>} value={formData.ownerContact} onChange={(v)=>handleInputChange('ownerContact', v)} />
                   </div>
-                  {/* UPDATED: address -> ownerAddress */}
                   <Input label="Owner Address *" icon={<FaMapMarkerAlt/>} value={formData.ownerAddress} onChange={(v)=>handleInputChange('ownerAddress', v)} />
                   <Input label="Owner DOB *" icon={<FaCalendarAlt/>} type="date" value={formData.dob} onChange={(v)=>handleInputChange('dob', v)} />
                 </motion.div>
@@ -257,7 +267,7 @@ const AddMenuForm = () => {
                     <ReviewSection title="Identity" onEdit={()=>setStep(1)}>
                         <ReviewItem label="Restaurant" value={formData.restaurantName} />
                         <ReviewItem label="Owner" value={formData.ownerName} />
-                        <ReviewItem label="Address" value={formData.ownerAddress} /> {/* Updated review field */}
+                        <ReviewItem label="Address" value={formData.ownerAddress} /> 
                     </ReviewSection>
                     <ReviewSection title="Verification" onEdit={()=>setStep(3)}>
                         <ReviewItem label="ID Type" value={formData.idType} />
@@ -290,7 +300,7 @@ const AddMenuForm = () => {
   );
 };
 
-
+// ... Sub-components (ReviewSection, ReviewItem, Input, Select, Upload) are exactly as before ...
 const ReviewSection = ({ title, children, onEdit }) => (
   <div className="bg-white p-3 rounded-2xl border border-slate-100 relative group">
     <div className="flex justify-between items-center mb-1">
