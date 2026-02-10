@@ -37,7 +37,7 @@ const handleFinish = async () => {
       didOpen: () => { Swal.showLoading(); }
     });
 
-    // FormData অবজেক্ট তৈরি
+    // FormData object
     const data = new FormData();
     data.append('owner_name', formData.ownerName);
     data.append('owner_email', formData.email);
@@ -46,7 +46,7 @@ const handleFinish = async () => {
     data.append('slug', slug);
     data.append('location', formData.ownerAddress);
     
-    // ফাইলগুলো যুক্ত করা
+    // file add 
     if (formData.logo) data.append('logo', formData.logo);
     if (formData.idFileFront) data.append('idFileFront', formData.idFileFront);
     if (formData.idFilePdf) data.append('idFilePdf', formData.idFilePdf);
@@ -111,7 +111,7 @@ const handleFinish = async () => {
     const file = e.target.files[0];
     if (!file) return;
     updateFormData({ [field]: file });
-    // OCR শুধুমাত্র ID Front ফটোর জন্য কাজ করবে
+    // OCR only for ID Front 
     if (step === 3 && (field === 'idFileFront') && formData.idFormat === 'Photo') performOCR(file);
   };
 
