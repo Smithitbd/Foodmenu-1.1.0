@@ -155,7 +155,7 @@ const AppContent = () => {
                 {/*Restaurant Admin dropdown pages*/}
                 <Route path="graph-report" element={<PageWrapper><GraphReport /></PageWrapper>} />
                 <Route path="table-report" element={<PageWrapper><TableReport /></PageWrapper>} />
-                <Route path="create-food" element={<PageWrapper><CreateOrder /></PageWrapper>} />
+                <Route path="create-Order-List" element={<PageWrapper><CreateOrder /></PageWrapper>} />
                 <Route path="orderslists" element={<PageWrapper><OrderList /></PageWrapper>} />
                 <Route path="add-menus" element={<PageWrapper><AddMenu /></PageWrapper>} />
                 <Route path="menu-list" element={<PageWrapper><MenuList /></PageWrapper>} />
