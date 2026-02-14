@@ -26,6 +26,7 @@ const upload = multer({ storage: storage });
 // MiddleWare
 app.use(cors());
 app.use(bodyParser.json());
+app.use('/uploads', express.static('uploads'));
 
 // Database connection 
 const db = mysql.createConnection({
@@ -161,6 +162,112 @@ app.post('/api/login', (req, res) => {
         } else {
             res.status(401).json({ message: "Invalid E-mail or password!\nPlease try again." });
         }
+    });
+});
+
+//API for Menu Item Add
+app.post('/api/add-product', upload.array('images',10), async(req, res) =>{
+    const connection = await db.promise();
+
+    try{
+        const {restaurant_id, name, price, offer_price, category} = req.body;
+        const files = req.files;
+
+        // first insert data into product table 
+        const [productResult] = await connection.query(
+            `INSERT INTO products (restaurant_id, name, price, offer_price, category) VALUES (?, ?, ?, ?, ?)`,
+            [restaurant_id, name, price, offer_price || 0, category]
+        );
+        const productId = productResult.insertId;
+
+        //jodi image thake tailey eta niya product_image table o rakha 
+        if(files && files.length > 0){
+            for(const file of files){
+                const fileName = `prod-${Date.now()}-${Math.round(Math.random()*1E9)}.webp`;
+                //image optimization
+                await sharp(file.buffer)
+                .resize(500, 500, {fit:'cover'})
+                .webp({quality: 80})
+                .toFile(path.join(uploadDir, fileName));
+                //image path save in database 
+                await connection.query(
+                    `INSERT INTO product_images (product_id, image_path) VALUES (?, ?)`,
+                    [productId, fileName]
+                );
+            }
+        }
+        res.status(201).json({ message: "Product and images added successfully!", productId });
+    }
+    catch(error){
+        console.error("Error:", error);
+        res.status(500).json({ message: "Server error occurred!" });
+    }
+});
+
+//API for Menu List
+app.get('/api/menu-list', (req, res) => {
+    const { restaurantId } = req.query;
+    const sql = `
+        SELECT p.*, 
+        GROUP_CONCAT(pi.image_path) as all_images 
+        FROM products p 
+        LEFT JOIN product_images pi ON p.id = pi.product_id 
+        GROUP BY p.id 
+        ORDER BY p.id DESC`;
+        db.query(sql, (err, results) => {
+            if (err) return res.status(500).json({ error : err.message});
+            const updatedResults = results.map(item => ({
+                ...item,
+                images : item.all_images ? item.all_images.split(',') : []
+            }));
+            res.json(updatedResults);
+        });
+});
+
+// API for updating a product
+app.put('/api/update-product/:id', (req, res) => {
+    const { id } = req.params;
+    const { name, price, category } = req.body;
+
+    const sql = "UPDATE products SET name = ?, price = ?, category = ? WHERE id = ?";
+    db.query(sql, [name, price, category, id], (err, result) => {
+        if (err) {
+            console.error("Update Error:", err);
+            return res.status(500).json({ message: "Update failed!" });
+        }
+        res.status(200).json({ message: "Product updated successfully!" });
+    });
+});
+
+// API for updating a product
+app.delete('/api/delete-product/:id', async (req, res) => {
+    const { id } = req.params;
+    const connection = await db.promise();
+
+    try {
+        // first delete image from product_image
+        await connection.query("DELETE FROM product_images WHERE product_id = ?", [id]);
+        
+        // product delete from product table
+        const [result] = await connection.query("DELETE FROM products WHERE id = ?", [id]);
+
+        if (result.affectedRows > 0) {
+            res.status(200).json({ message: "Item deleted successfully!" });
+        } else {
+            res.status(404).json({ message: "Item not found!" });
+        }
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ message: "Server error during deletion!" });
+    }
+});
+
+// API for Category
+app.get('/api/get-categories', (req, res) => {
+    const sql = "SELECT DISTINCT category FROM products ORDER BY category ASC";
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results); 
     });
 });
 

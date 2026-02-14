@@ -1,13 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Calendar, Tag, Layers, DollarSign, List, PlusCircle, X, Edit2 } from 'lucide-react';
+import { Upload, Calendar, Tag, Layers, DollarSign, List, PlusCircle, X, Edit2, ChevronDown } from 'lucide-react';
 import Swal from 'sweetalert2';
-// import axios from 'axios'; 
+import axios from 'axios'; 
 
 const AddMenu = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+  const rid = localStorage.getItem('restaurantId');
+  if (!rid) {
+    navigate('/login');
+  }
+}, [navigate]);
+
+const restaurantId = localStorage.getItem('restaurantId');
+  
 
   // Form States
   const [itemName, setItemName] = useState('');
@@ -17,7 +27,21 @@ const AddMenu = () => {
   const [price, setPrice] = useState('');
   const [publishDate, setPublishDate] = useState(new Date().toISOString().split('T')[0]);
   const [images, setImages] = useState([]);
-  const [categories, setCategories] = useState(['Dessert', 'Fast Food', 'Traditional', 'Drinks']); 
+  const [categories, setCategories] = useState([]);
+  const [existingCategories, setExistingCategories] = useState([]);
+
+  useEffect(() => {
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/get-categories');
+      // ডাটাবেস থেকে পাওয়া অ্যারেটি সেট করা
+      setCategories(res.data.map(item => item.category));
+    } catch (err) {
+      console.error("Categories fetch logic failed");
+    }
+  };
+  fetchCategories();
+  }, []);
 
   const today = new Date().toISOString().split('T')[0];
 
@@ -48,29 +72,46 @@ const AddMenu = () => {
 
     setIsLoading(true);
 
-    /* --- BACKEND: Submit Logic --- */
-    /*
+    // Form Data object Create
     const formData = new FormData();
+    formData.append('restaurant_id', restaurantId);
     formData.append('name', itemName);
     formData.append('quantity', finalQuantity);
     formData.append('category', selectedCategory);
     formData.append('price', price);
     formData.append('publishDate', publishDate);
-    images.forEach(img => formData.append('images', img));
-    // ... rest of axios code
-    */
+    //for multiple image
+    images.forEach((img) => {
+    formData.append('images', img); 
+  });
 
-    setTimeout(() => {
-      setIsLoading(false);
+  try {
+    const response = await axios.post('http://localhost:5000/api/add-product', formData,{
+      headers : {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    
+    if (response.status === 201){
       Swal.fire({
         icon: 'success',
         title: 'Published!',
-        text: `Item with ${finalQuantity} quantity added.`,
+        text: 'Menu item with images added successfully.',
         timer: 2000,
         showConfirmButton: false
       });
       navigate('/restaurantadmin/menu-list');
-    }, 1500);
+    }
+  } catch (error){
+    console.error("Upload Error : ", error);
+    Swal.fire({
+        icon: 'error',
+        title: 'Failed..!',
+        text: error.response?.data?.message || 'Something went Wrong..!',
+      });
+  } finally{
+    setIsLoading(false);
+  }
   };
 
   return (
@@ -115,22 +156,34 @@ const AddMenu = () => {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                  <Layers size={14} className="text-red-500"/> Select Category
-                </label>
-                <select 
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:bg-white outline-none transition-all font-bold text-slate-700 appearance-none cursor-pointer"
-                  required
-                >
-                  <option value="">Choose a category</option>
-                  {categories.map((cat, index) => (
-                    <option key={index} value={cat}>{cat}</option>
-                  ))}
-                </select>
-              </div>
+              <div className="space-y-2 relative">
+  <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+    <Layers size={14} className="text-red-500"/> Select Category
+  </label>
+  
+      <div className="relative">
+        <select 
+          value={selectedCategory}
+          onChange={(e) => setSelectedCategory(e.target.value)}
+          className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:bg-white outline-none transition-all font-bold text-slate-700 appearance-none cursor-pointer"
+          required
+        >
+          <option value="" disabled>Choose a category</option>
+          {categories.length > 0 ? (
+            categories.map((cat, index) => (
+              <option key={index} value={cat}>{cat}</option>
+            ))
+          ) : (
+            <option disabled>Loading categories...</option>
+          )}
+        </select>
+        
+        {/* DropDown Arrow Icon */}
+        <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+          <ChevronDown size={18} />
+        </div>
+      </div>
+    </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -34,6 +34,7 @@ const LoginPage = () => {
         });
         //store user data in localstorage
         localStorage.setItem('user',JSON.stringify(response.data.user));
+        localStorage.setItem('restaurantId', response.data.user.id);
         navigate('/restaurantadmin');
       }
     } catch (error) {
