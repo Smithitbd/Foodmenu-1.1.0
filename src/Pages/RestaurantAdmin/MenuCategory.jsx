@@ -6,19 +6,11 @@ import {
 import Swal from 'sweetalert2';
 import axios from 'axios';
 
-// Backend API (when database will be ready)
-//const API_BASE_URL = 'http://localhost:5000/api/categories';
+// Backend API 
+const API_BASE_URL = 'http://localhost:5000/api/add-category';
 
 const MenuCategory = () => {
-  const [categories, setCategories] = useState([
-    { _id: '1', name: 'Burger' },
-    { _id: '2', name: 'Pizza' },
-    { _id: '3', name: 'Platter' },
-    { _id: '4', name: 'Drinks' },
-    { _id: '5', name: 'Desserts' },
-    { _id: '6', name: 'Sandwich' },
-    { _id: '7', name: 'Pasta' },
-  ]);
+  const [categories, setCategories] = useState([]);
 
   const [inputVal, setInputVal] = useState("");
   const [editId, setEditId] = useState(null);
@@ -33,11 +25,14 @@ const MenuCategory = () => {
   // data fetch function ( when API ready)
   const fetchCategories = async () => {
     try {
-      // const res = await axios.get(API_BASE_URL);
-      // setCategories(res.data);
-      console.log("Fetching categories...");
+      setLoading(true);
+      const res = await axios.get('http://localhost:5000/api/get-categories');
+      setCategories(res.data);
     } catch (err) {
       console.error("Error fetching categories", err);
+    }
+    finally{
+      setLoading(false);
     }
   };
 
@@ -50,21 +45,21 @@ const MenuCategory = () => {
     if (!inputVal.trim()) {
       return Swal.fire('Error', 'Category name is required!', 'error');
     }
-
     setLoading(true);
     try {
       if (editId) {
-        // API Update: await axios.put(`${API_BASE_URL}/${editId}`, { name: inputVal });
-        setCategories(categories.map(cat => cat._id === editId ? { ...cat, name: inputVal } : cat));
+        await axios.put(`http://localhost:5000/api/update-category/${editId}`, { name: inputVal });
+        //setCategories(prev => prev.map(cat => cat.id === editId ? { ...cat, name: inputVal } : cat));
         Swal.fire({ title: 'Updated!', text: 'Category name changed.', icon: 'success', confirmButtonColor: '#ef4444' });
-        setEditId(null);
+        //setEditId(null);
       } else {
-        // API Post: const res = await axios.post(API_BASE_URL, { name: inputVal });
-        const newCat = { _id: Date.now().toString(), name: inputVal };
-        setCategories([...categories, newCat]);
-        Swal.fire({ title: 'Success!', text: 'New category added.', icon: 'success', confirmButtonColor: '#ef4444' });
+        const res = await axios.post('http://localhost:5000/api/add-category', { name: inputVal });
+        //await fetchCategories();
+        Swal.fire('Success!', 'New category added.', 'success');      
       }
       setInputVal("");
+      setEditId(null);
+      await fetchCategories();
     } catch (err) {
       Swal.fire('Error', 'Action failed!', 'error');
     } finally {
@@ -84,8 +79,14 @@ const MenuCategory = () => {
       confirmButtonText: 'Yes, delete it!'
     }).then(async (result) => {
       if (result.isConfirmed) {
-        setCategories(categories.filter(cat => cat._id !== id));
-        Swal.fire('Deleted!', 'Category removed.', 'success');
+        try{
+          await axios.delete(`http://localhost:5000/api/delete-category/${id}`);
+          setCategories(prev => prev.filter(cat => cat.id !== id));
+          fetchCategories(); // List Update 
+          Swal.fire('Deleted!', 'Category removed.', 'success');
+        }catch{
+          Swal.fire('Error', 'Failed to delete!', 'error');
+        }
       }
     });
   };
@@ -102,7 +103,7 @@ const MenuCategory = () => {
     }).then((result) => {
       if (result.isConfirmed) {
         setInputVal(cat.name);
-        setEditId(cat._id);
+        setEditId(cat.id);
       }
     });
   };
@@ -225,7 +226,7 @@ const MenuCategory = () => {
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {currentItems.map((cat, idx) => (
-                  <tr key={cat._id} className="hover:bg-gray-50/50 transition-colors group">
+                  <tr key={cat.id} className="hover:bg-gray-50/50 transition-colors group">
                     <td className="px-8 py-5 text-xs font-black text-slate-300">
                       {((currentPage - 1) * entriesPerPage + idx + 1).toString().padStart(2, '0')}
                     </td>
@@ -239,7 +240,7 @@ const MenuCategory = () => {
                           <Edit2 size={14}/>
                         </button>
                         <button 
-                          onClick={() => handleDelete(cat._id)}
+                          onClick={() => handleDelete(cat.id)}
                           className="p-2.5 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all shadow-sm"
                         >
                           <Trash2 size={14}/>
@@ -281,7 +282,7 @@ const MenuCategory = () => {
 
               <button 
                 disabled={currentPage === totalPages || totalPages === 0}
-                onClick={() => setCurrentPage(p => p - 1)}
+                onClick={() => setCurrentPage(p => p + 1)}
                 className="p-2.5 rounded-xl bg-white border border-gray-100 text-slate-400 hover:text-red-500 disabled:opacity-30 transition-all shadow-sm"
               >
                 <ChevronRight size={18}/>

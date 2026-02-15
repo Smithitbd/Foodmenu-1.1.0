@@ -31,16 +31,16 @@ const restaurantId = localStorage.getItem('restaurantId');
   const [existingCategories, setExistingCategories] = useState([]);
 
   useEffect(() => {
-  const fetchCategories = async () => {
-    try {
-      const res = await axios.get('http://localhost:5000/api/get-categories');
-      // ডাটাবেস থেকে পাওয়া অ্যারেটি সেট করা
-      setCategories(res.data.map(item => item.category));
-    } catch (err) {
-      console.error("Categories fetch logic failed");
-    }
-  };
-  fetchCategories();
+    const fetchCategories = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/get-categories');
+        // Map the name from database by using SET
+        setCategories(res.data.map(item => item.name)); 
+      } catch (err) {
+        console.error("Categories fetch failed");
+      }
+    };
+    fetchCategories();
   }, []);
 
   const today = new Date().toISOString().split('T')[0];

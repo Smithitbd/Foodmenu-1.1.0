@@ -262,12 +262,38 @@ app.delete('/api/delete-product/:id', async (req, res) => {
     }
 });
 
-// API for Category
+// API for Add Category
+app.post('/api/add-category', (req, res) => {
+    const { name } = req.body;
+    const sql = "INSERT INTO categories (name) VALUES (?)";
+    db.query(sql, [name], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.status(201).json({ message: "Category added successfully!" });
+    });
+});
+
+// API for get Category
 app.get('/api/get-categories', (req, res) => {
-    const sql = "SELECT DISTINCT category FROM products ORDER BY category ASC";
+    const sql = "SELECT id,  name FROM categories ORDER BY name ASC";
     db.query(sql, (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results); 
+    });
+});
+
+//API for Update Category
+app.put('/api/update-category/:id', (req, res) => {
+    db.query("UPDATE categories SET name = ? WHERE id = ?", [req.body.name, req.params.id], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send("Updated");
+    });
+});
+
+//API for Delete Category
+app.delete('/api/delete-category/:id', (req, res) => {
+    db.query("DELETE FROM categories WHERE id = ?", [req.params.id], (err) => {
+        if (err) return res.status(500).send(err);
+        res.send("Deleted");
     });
 });
 
