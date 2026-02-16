@@ -207,19 +207,19 @@ app.post('/api/add-product', upload.array('images',10), async(req, res) =>{
 
 //API for Menu List
 app.get('/api/menu-list', (req, res) => {
-    const { restaurantId } = req.query;
+    const { restaurant_id } = req.query;
     const sql = `
-        SELECT p.*, 
-        GROUP_CONCAT(pi.image_path) as all_images 
-        FROM products p 
-        LEFT JOIN product_images pi ON p.id = pi.product_id 
-        GROUP BY p.id 
-        ORDER BY p.id DESC`;
-        db.query(sql, (err, results) => {
+    SELECT p.*, GROUP_CONCAT(pi.image_path) as all_images 
+    FROM products p 
+    LEFT JOIN product_images pi ON p.id = pi.product_id 
+    WHERE p.restaurant_id = ? 
+    GROUP BY p.id 
+    ORDER BY p.id DESC`
+        db.query(sql, [restaurant_id], (err, results) => {
             if (err) return res.status(500).json({ error : err.message});
-            const updatedResults = results.map(item => ({
+                const updatedResults = results.map(item => ({
                 ...item,
-                images : item.all_images ? item.all_images.split(',') : []
+                images: item.all_images ? item.all_images.split(',') : []
             }));
             res.json(updatedResults);
         });
@@ -346,7 +346,7 @@ app.get('/api/restaurant-stats/:resId', async(req, res) => {
 
     }catch(err){
         console.error("Dashboard API Error:", err);
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Server Error" });   
     }
     /*db.query(menuCountSql, [resId], (err, menuRes) => {
         if (err) return res.status(500).json(err);
@@ -374,6 +374,31 @@ app.put('/api/update-store-status/:resId', (req, res) => {
     db.query(sql, [status, resId], (err, result) => {
         if (err) return res.status(500).json(err);
         res.json({ message: "Status updated successfully", status });
+    });
+});
+
+// API for food Status
+app.patch('/api/update-food-status/:id', (req, res) => {
+    const { id } = req.params;
+    const { is_available } = req.body; // status: true or false
+
+    const sql = "UPDATE products SET is_available = ? WHERE id = ?";
+    db.query(sql, [is_available ? 1 : 0, id], (err, result) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Product not found" });
+        }
+        res.json({ message: "Status updated successfully" });
+    });
+});
+
+// API for All food update
+app.patch('/api/update-all-status', (req, res) => {
+    const { restaurant_id, is_available } = req.body;
+    const sql = "UPDATE products SET is_available = ? WHERE restaurant_id = ?";
+    db.query(sql, [is_available ? 1 : 0, restaurant_id], (err, result) => {
+        if (err) return res.is_available(500).json({ error: err.message });
+        res.json({ message: "All items updated" });
     });
 });
 

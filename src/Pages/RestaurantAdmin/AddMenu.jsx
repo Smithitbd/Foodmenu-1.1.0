@@ -10,13 +10,13 @@ const AddMenu = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-  const rid = localStorage.getItem('restaurantId');
+  const rid = localStorage.getItem('resId');
   if (!rid) {
     navigate('/login');
   }
 }, [navigate]);
 
-const restaurantId = localStorage.getItem('restaurantId');
+const restaurantId = localStorage.getItem('resId');
   
 
   // Form States

@@ -22,18 +22,18 @@ const MenuList = () => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-  const restaurantId = localStorage.getItem('restaurantId');
+  const resId = localStorage.getItem('resId');
 
-  if (!restaurantId || restaurantId === "undefined" || restaurantId === "null") {
+  if (!resId || resId === "undefined" || resId === "null") {
     navigate('/login');
   } else {
-    fetchMenu(restaurantId); 
+    fetchMenu(resId); 
   }
 }, []);
-    const fetchMenu = async (restaurantId) => {
+    const fetchMenu = async (resId) => {
       setIsLoading(true);
           try {
-            const res = await axios.get(`http://localhost:5000/api/menu-list?restaurantId=${restaurantId}`);
+            const res = await axios.get(`http://localhost:5000/api/menu-list?restaurant_id=${resId}`);
             setMenuItems(res.data);
           } catch (err) {
             console.error("Fetch Error:", err);
@@ -100,8 +100,8 @@ const MenuList = () => {
                 showConfirmButton: false
             });
             setIsEditOpen(false);
-            const restaurantId = localStorage.getItem('restaurantId');
-            fetchMenu(restaurantId);
+            const resId = localStorage.getItem('resId');
+            fetchMenu(resId);
         }
     } catch (err) {
         Swal.fire('Error', 'Update failed!', 'error');
