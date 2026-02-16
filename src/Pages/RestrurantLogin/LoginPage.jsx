@@ -25,16 +25,19 @@ const LoginPage = () => {
         });
       if(response.status === 200){
         setIsLoading(false);
+        const loggedInUser = response.data.user;
         Swal.fire({
           icon : 'success',
           title : 'Welcome Back..!',
-          text: `Hello ${response.data.user.name}, Login Successfully..!`,
+          text: `Hello ${loggedInUser.name}, Login Successfully..!`,
           timer: 1500,
           showConfirmButton : false
         });
         //store user data in localstorage
-        localStorage.setItem('user',JSON.stringify(response.data.user));
-        localStorage.setItem('restaurantId', response.data.user.id);
+        localStorage.setItem('user',JSON.stringify(loggedInUser));
+        localStorage.setItem('resId', loggedInUser.id);
+        localStorage.setItem('resName', loggedInUser.restaurant);
+        localStorage.setItem('resLogo', loggedInUser.logo);
         navigate('/restaurantadmin');
       }
     } catch (error) {

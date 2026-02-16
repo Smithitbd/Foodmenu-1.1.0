@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom'; 
 import Swal from 'sweetalert2';
 import { 
@@ -21,11 +22,30 @@ const DashboardLayout = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
 
   const location = useLocation();
-  const navigate = useNavigate(); 
+  const navigate = useNavigate();
+
+  const [resName, setResName] = useState(localStorage.getItem('resName'));
+  const [resLogo, setResLogo] = useState(localStorage.getItem('resLogo'));
+  useEffect(() => {
+    const syncDashboard = async () => {
+      const resId = localStorage.getItem('resId');
+      if (!resId) return;
+      try{
+        const res = await axios.get(`http://localhost:5000/api/dashboard-stats/${resId}`);
+        setIsStoreOpen(res.data.status === 'active');
+        setResName(res.data.name);
+        setResLogo(res.data.logo);
+        localStorage.setItem('resName', res.data.name);
+      }catch(error){
+        console.error("Layout Sync Error:", error);
+      }
+    };
+  syncDashboard();
+  }, []);
 
   const restaurantInfo = {
-    name: "Sultan's Dine",
-    logo: "https://i.ibb.co/L6vM8D5/sultans-dine-logo.png", 
+    name: resName,
+    logo: resLogo
   };
 
   const handleLogout = () => {
@@ -244,7 +264,7 @@ const DashboardLayout = () => {
             <div className="relative">
               <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer group p-1 hover:bg-gray-50 rounded-2xl transition-all">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-black text-gray-900 italic uppercase leading-none"><span className="text-red-600">{restaurantInfo.name} </span></p>
+                  <p className="text-sm font-black text-gray-900 italic uppercase leading-none"><span className="text-red-600">{resName} </span></p>
                   <p className={`text-[9px] font-bold uppercase mt-1 flex items-center justify-end gap-1 ${isStoreOpen ? 'text-green-500' : 'text-red-500'}`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${isStoreOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></span>
                     {isStoreOpen ? 'Online' : 'Offline'}

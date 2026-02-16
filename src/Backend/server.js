@@ -153,7 +153,8 @@ app.post('/api/login', (req, res) => {
                     user: {
                         id: user.id,
                         name: user.owner_name,
-                        restaurant: user.restaurant_name
+                        restaurant: user.restaurant_name,
+                        logo: user.logo 
                     }
                 });
             } else {
@@ -294,6 +295,85 @@ app.delete('/api/delete-category/:id', (req, res) => {
     db.query("DELETE FROM categories WHERE id = ?", [req.params.id], (err) => {
         if (err) return res.status(500).send(err);
         res.send("Deleted");
+    });
+});
+
+// API for Dashboard status
+app.get('/api/restaurant-stats/:resId', async(req, res) => {
+    const { resId } = req.params;
+    const conn = db.promise();
+
+    try{
+        //Restaurant Name and Status
+        const [resInfo] = await conn.query("SELECT restaurant_name, status FROM restaurants WHERE id = ?", [resId]);
+
+        // Total menu item
+        const [menuCount] = await conn.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
+        
+        // store status
+        const statusSql = "SELECT status FROM restaurants WHERE id = ?";
+
+        //pending order
+        const [orders] = await conn.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND status = 'pending'", [resId]);
+
+
+        // Todays income 
+        const [earnings] = await conn.query("SELECT SUM(total_price) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
+
+        //Weekly income
+        const [weeklySales] = await conn.query(`
+            SELECT DAYNAME(created_at) as day, SUM(total_price) as total 
+            FROM orders 
+            WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            GROUP BY DAYNAME(created_at)
+        `, [resId]);
+
+        //Incoming Order
+        const [latestOrders] = await conn.query("SELECT id, total_price, status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
+
+        res.json({
+            name: resInfo[0]?.restaurant_name || localStorage.getItem('resName'),
+            status: resInfo[0]?.status || "inactive",
+            totalMenu: menuCount[0]?.total || 0,
+            activeOrders: orders[0]?.active || 0,
+            todayEarning: earnings[0]?.todayTotal || 0,
+            avgRating: 4.8, // আপাতত ডামি রেটিং
+            weeklySales: weeklySales.length > 0 ? weeklySales : [
+                {day: 'Sun', total: 0}, {day: 'Mon', total: 0}, {day: 'Tue', total: 0}, {day: 'Wed', total: 0}
+            ],
+            incomingOrders: latestOrders
+        });
+
+    }catch(err){
+        console.error("Dashboard API Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+    /*db.query(menuCountSql, [resId], (err, menuRes) => {
+        if (err) return res.status(500).json(err);
+        
+        db.query(statusSql, [resId], (err, statusRes) => {
+            if (err) return res.status(500).json(err);
+            
+            res.json({
+                totalMenu: menuRes[0].totalMenu,
+                storeStatus: statusRes[0].status, // 'active' or 'inactive'
+                activeOrders: 0, // পরে অর্ডার টেবিল হলে আপডেট হবে
+                todayEarning: 0,
+                avgRating: 4.8
+            });
+        });
+    });*/
+});
+
+//  API for Store status
+app.put('/api/update-store-status/:resId', (req, res) => {
+    const { resId } = req.params;
+    const { status } = req.body; // 'active' or 'inactive'
+    
+    const sql = "UPDATE restaurants SET status = ? WHERE id = ?";
+    db.query(sql, [status, resId], (err, result) => {
+        if (err) return res.status(500).json(err);
+        res.json({ message: "Status updated successfully", status });
     });
 });
 
