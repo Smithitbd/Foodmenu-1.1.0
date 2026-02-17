@@ -22,11 +22,14 @@ const MenuCategory = () => {
   const [entriesPerPage, setEntriesPerPage] = useState(5); 
   const [sortOrder, setSortOrder] = useState('asc');
 
+  const rawId = localStorage.getItem('resId');
+  const restaurantId = rawId ? rawId.toString().split(':')[0] : null;
+
   // data fetch function ( when API ready)
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('http://localhost:5000/api/get-categories');
+      const res = await axios.get(`http://localhost:5000/api/get-categories?restaurant_id=${restaurantId}`);
       setCategories(res.data);
     } catch (err) {
       console.error("Error fetching categories", err);
@@ -45,6 +48,10 @@ const MenuCategory = () => {
     if (!inputVal.trim()) {
       return Swal.fire('Error', 'Category name is required!', 'error');
     }
+    const restaurantId = localStorage.getItem('resId');
+    if (!restaurantId) {
+        return Swal.fire('Error', 'Session expired. Please login again.', 'error');
+    }
     setLoading(true);
     try {
       if (editId) {
@@ -53,7 +60,10 @@ const MenuCategory = () => {
         Swal.fire({ title: 'Updated!', text: 'Category name changed.', icon: 'success', confirmButtonColor: '#ef4444' });
         //setEditId(null);
       } else {
-        const res = await axios.post('http://localhost:5000/api/add-category', { name: inputVal });
+        await axios.post('http://localhost:5000/api/add-category', { 
+            name: inputVal, 
+            restaurant_id: restaurantId 
+        });
         //await fetchCategories();
         Swal.fire('Success!', 'New category added.', 'success');      
       }

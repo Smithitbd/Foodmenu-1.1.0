@@ -33,9 +33,15 @@ const restaurantId = localStorage.getItem('resId');
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/get-categories');
-        // Map the name from database by using SET
-        setCategories(res.data.map(item => item.name)); 
+
+        const rid = localStorage.getItem('resId');
+        if (rid) {
+          const cleanId = rid.toString().split(':')[0];
+          const res = await axios.get(`http://localhost:5000/api/get-categories?restaurant_id=${cleanId}`);
+        if (res.data) {
+          setCategories(res.data.map(item => item.name));// Map the name from database by using SET
+          }
+        }
       } catch (err) {
         console.error("Categories fetch failed");
       }

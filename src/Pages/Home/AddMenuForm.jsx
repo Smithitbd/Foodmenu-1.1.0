@@ -9,7 +9,7 @@ import {
   FaLock, FaCloudUploadAlt, FaEnvelope, FaSpinner, FaEdit,
   FaRegImage, FaFilePdf 
 } from 'react-icons/fa';
-import Tesseract from 'tesseract.js';
+// import Tesseract from 'tesseract.js'; //  OCR 
 import { useFormContext } from '../../context/FormContext'; 
 
 const AddMenuForm = () => {
@@ -22,12 +22,13 @@ const AddMenuForm = () => {
   const [scanProgress, setScanProgress] = useState(0);
 
   useEffect(() => {
-    setIsVerified(false);
+    // OCR কমেন্ট করা থাকলেও Initial state true করে দিচ্ছি যেন Step 3 তে বাধা না দেয়
+    setIsVerified(true); 
     setScanError("");
   }, [formData.idFormat, formData.idType, setIsVerified]);
 
   // --- UPDATED HANDLE FINISH ---
-const handleFinish = async () => {
+  const handleFinish = async () => {
     const slug = formData.restaurantName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
     
     Swal.fire({
@@ -37,7 +38,6 @@ const handleFinish = async () => {
       didOpen: () => { Swal.showLoading(); }
     });
 
-    // FormData object
     const data = new FormData();
     data.append('owner_name', formData.ownerName);
     data.append('owner_email', formData.email);
@@ -46,15 +46,14 @@ const handleFinish = async () => {
     data.append('slug', slug);
     data.append('location', formData.ownerAddress);
     
-    // file add 
     if (formData.logo) data.append('logo', formData.logo);
     if (formData.idFileFront) data.append('idFileFront', formData.idFileFront);
     if (formData.idFilePdf) data.append('idFilePdf', formData.idFilePdf);
 
     try {
       const response = await axios.post('http://localhost:5000/api/register-restaurant', data, {
-    headers: { 'Content-Type': 'multipart/form-data' } 
-    });
+        headers: { 'Content-Type': 'multipart/form-data' } 
+      });
 
       if (response.status === 201) {
         Swal.fire({
@@ -74,6 +73,7 @@ const handleFinish = async () => {
     }
   };
 
+  /* --- OCR LOGIC COMMENTED FOR FUTURE VERSION ---
   const performOCR = async (file) => {
     if (!formData.ownerName || formData.ownerName.length < 3) {
       alert("Please enter a valid Owner Name in Step 1 first.");
@@ -104,6 +104,7 @@ const handleFinish = async () => {
       setScanProgress(0);
     }
   };
+  */
 
   const handleInputChange = (field, value) => updateFormData({ [field]: value });
 
@@ -111,24 +112,28 @@ const handleFinish = async () => {
     const file = e.target.files[0];
     if (!file) return;
     updateFormData({ [field]: file });
-    // OCR only for ID Front 
-    if (step === 3 && (field === 'idFileFront') && formData.idFormat === 'Photo') performOCR(file);
+    // OCR logic commented out
+    // if (step === 3 && (field === 'idFileFront') && formData.idFormat === 'Photo') performOCR(file);
   };
 
   const canNextStep = () => {
     if (step === 1) return formData.restaurantName && formData.ownerName && formData.ownerContact && formData.ownerAddress && formData.dob;
     if (step === 2) return formData.officeAddress && formData.category && formData.resContact && formData.logo && formData.logoType;
     if (step === 3) {
-      if (formData.idFormat === 'Photo') return isVerified && formData.idFileFront && (formData.idType === 'NID' ? formData.idFileBack : true);
+      if (formData.idFormat === 'Photo') return formData.idFileFront && (formData.idType === 'NID' ? formData.idFileBack : true);
       return formData.idFilePdf;
     }
     if (step === 4) return formData.email && formData.password && (formData.password === formData.confirmPassword) && formData.password.length >= 6;
-    if (step === 5) return formData.otpMethod && formData.otpCode?.length === 6;
+    // Step 5 (OTP) skipped currently
     return true;
   };
 
   const nextStep = () => {
-    if (canNextStep()) setStep(prev => prev + 1);
+    if (canNextStep()) {
+        // Step 4 এর পর সরাসরি Step 6 এ চলে যাবে (Step 5 skip)
+        if (step === 4) setStep(6);
+        else setStep(prev => prev + 1);
+    }
     else alert("Please complete all required fields correctly.");
   };
 
@@ -144,21 +149,27 @@ const handleFinish = async () => {
               <span className="text-lg font-black uppercase tracking-widest">FoodMenu<span className="text-red-500">BD</span></span>
             </div>
             <div className="space-y-4">
-              {['Identity', 'Business', 'Verify', 'Security', 'OTP', 'Review'].map((t, i) => (
-                <div key={i} className={`flex items-center gap-3 transition-opacity duration-500 ${step >= i+1 ? 'opacity-100' : 'opacity-20'}`}>
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${step > i+1 ? 'bg-green-500 border-none' : step === i+1 ? 'bg-red-600 border-none' : 'border border-slate-700'}`}>
-                    {step > i+1 ? <FaCheckCircle /> : i+1}
+              {['Identity', 'Business', 'Verify', 'Security', 'Review'].map((t, i) => {
+                // Step indexing logic adjusted because step 5 is skipped
+                let displayStep = i + 1;
+                if (i === 4) displayStep = 6; // Review is step 6
+
+                return (
+                  <div key={i} className={`flex items-center gap-3 transition-opacity duration-500 ${step >= displayStep ? 'opacity-100' : 'opacity-20'}`}>
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${step > displayStep ? 'bg-green-500 border-none' : step === displayStep ? 'bg-red-600 border-none' : 'border border-slate-700'}`}>
+                      {step > displayStep ? <FaCheckCircle /> : i+1}
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-widest">{t}</span>
                   </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest">{t}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
           <div className="pt-4 border-t border-slate-800">
              <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
                 <motion.div animate={{ width: `${(step / 6) * 100}%` }} className="h-full bg-red-600" />
              </div>
-             <p className="text-[9px] mt-2 text-slate-500 font-bold uppercase">Step {step} of 6</p>
+             <p className="text-[9px] mt-2 text-slate-500 font-bold uppercase">Step {step === 6 ? 5 : step} of 5</p>
           </div>
         </div>
 
@@ -193,14 +204,14 @@ const handleFinish = async () => {
                   <div className="p-4 bg-slate-50 rounded-3xl border border-slate-100 space-y-2">
                     <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Logo Format *</label>
                     <div className="flex gap-4">
-                       <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="logoType" checked={formData.logoType === 'Photo'} onChange={() => handleInputChange('logoType', 'Photo')} className="accent-red-600" />
-                          <span className="text-[10px] font-bold text-slate-600 uppercase"><FaRegImage className="inline mb-1"/> Photo</span>
-                       </label>
-                       <label className="flex items-center gap-2 cursor-pointer">
-                          <input type="radio" name="logoType" checked={formData.logoType === 'PDF'} onChange={() => handleInputChange('logoType', 'PDF')} className="accent-red-600" />
-                          <span className="text-[10px] font-bold text-slate-600 uppercase"><FaFilePdf className="inline mb-1"/> PDF</span>
-                       </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                           <input type="radio" name="logoType" checked={formData.logoType === 'Photo'} onChange={() => handleInputChange('logoType', 'Photo')} className="accent-red-600" />
+                           <span className="text-[10px] font-bold text-slate-600 uppercase"><FaRegImage className="inline mb-1"/> Photo</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                           <input type="radio" name="logoType" checked={formData.logoType === 'PDF'} onChange={() => handleInputChange('logoType', 'PDF')} className="accent-red-600" />
+                           <span className="text-[10px] font-bold text-slate-600 uppercase"><FaFilePdf className="inline mb-1"/> PDF</span>
+                        </label>
                     </div>
                     <Upload label={formData.logoType ? `Upload Logo (${formData.logoType})` : "Select Type First"} onChange={(e) => handleFileChange(e, 'logo')} fileName={formData.logo?.name} disabled={!formData.logoType} />
                   </div>
@@ -218,13 +229,12 @@ const handleFinish = async () => {
                   <div className="grid grid-cols-2 gap-3">
                     {formData.idFormat === 'Photo' ? (
                       <>
-                        <Upload label="Front (Scan) *" onChange={(e)=>handleFileChange(e, 'idFileFront')} fileName={formData.idFileFront?.name} isScanning={isScanning} isVerified={isVerified} />
+                        <Upload label="Front (ID Photo) *" onChange={(e)=>handleFileChange(e, 'idFileFront')} fileName={formData.idFileFront?.name} isScanning={isScanning} isVerified={true} />
                         {formData.idType === 'NID' && <Upload label="Back Side *" onChange={(e)=>handleFileChange(e, 'idFileBack')} fileName={formData.idFileBack?.name} />}
                       </>
                     ) : <Upload label="Identity PDF *" onChange={(e)=>handleFileChange(e, 'idFilePdf')} fileName={formData.idFilePdf?.name} />}
                   </div>
-                  {isScanning && <p className="text-blue-600 font-bold text-[9px] uppercase animate-pulse"><FaSpinner className="inline animate-spin mr-1"/> OCR Scanning...</p>}
-                  {isVerified && <p className="text-green-600 font-bold text-[9px] uppercase"><FaCheckCircle className="inline mr-1"/> Verified</p>}
+                  {/* OCR messages hidden */}
                 </motion.div>
               )}
 
@@ -239,7 +249,7 @@ const handleFinish = async () => {
                 </motion.div>
               )}
 
-              {step === 5 && (
+              {/*step === 5 && (
                 <motion.div key="5" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 text-center">
                   <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto"><FaLock className="text-red-600 text-2xl" /></div>
                   <h2 className="text-2xl font-black text-slate-900">OTP Verification</h2>
@@ -258,7 +268,7 @@ const handleFinish = async () => {
                     </div>
                   )}
                 </motion.div>
-              )}
+              )*/}
 
               {step === 6 && (
                 <motion.div key="6" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-4">
@@ -271,11 +281,10 @@ const handleFinish = async () => {
                     </ReviewSection>
                     <ReviewSection title="Verification" onEdit={()=>setStep(3)}>
                         <ReviewItem label="ID Type" value={formData.idType} />
-                        <ReviewItem label="OCR Status" value={isVerified ? "Verified ✅" : "Pending ⚠️"} />
+                        <ReviewItem label="Status" value="Document Uploaded" />
                     </ReviewSection>
                     <ReviewSection title="Security" onEdit={()=>setStep(4)}>
                         <ReviewItem label="Email" value={formData.email} />
-                        <ReviewItem label="OTP Status" value="Verified ✅" />
                     </ReviewSection>
                   </div>
                 </motion.div>
@@ -283,14 +292,17 @@ const handleFinish = async () => {
             </AnimatePresence>
 
             <div className="flex gap-3 mt-10">
-              {step > 1 && <button onClick={() => setStep(step - 1)} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Back</button>}
+              {step > 1 && <button onClick={() => {
+                  if (step === 6) setStep(4);
+                  else setStep(step - 1);
+              }} className="px-6 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black text-[10px] uppercase">Back</button>}
               <motion.button 
                 whileTap={{ scale: 0.98 }}
                 onClick={step === 6 ? handleFinish : nextStep}
                 disabled={!canNextStep()}
                 className={`flex-1 py-4 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${canNextStep() ? 'bg-slate-900 hover:bg-red-600' : 'bg-slate-200 cursor-not-allowed text-slate-400 shadow-none'}`}
               >
-                {step === 6 ? "Finish" : (step === 5 ? "Verify & Next" : "Continue")} <FaArrowRight />
+                {step === 6 ? "Finish" : "Continue"} <FaArrowRight />
               </motion.button>
             </div>
           </div>
@@ -300,7 +312,7 @@ const handleFinish = async () => {
   );
 };
 
-// ... Sub-components (ReviewSection, ReviewItem, Input, Select, Upload) are exactly as before ...
+// ... Sub-components (ReviewSection, ReviewItem, Input, Select, Upload)
 const ReviewSection = ({ title, children, onEdit }) => (
   <div className="bg-white p-3 rounded-2xl border border-slate-100 relative group">
     <div className="flex justify-between items-center mb-1">

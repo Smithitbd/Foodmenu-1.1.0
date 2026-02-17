@@ -135,11 +135,11 @@ app.post('/api/register-restaurant', upload.fields([
 
 // API for Login 
 app.post('/api/login', (req, res) => {
-    const { email, password } = req.body;
+    const { identifier, password } = req.body;
 
-    const sql = "SELECT * FROM Restaurants WHERE owner_email = ?";
+    const sql = "SELECT * FROM Restaurants WHERE owner_email = ? OR owner_name = ? OR restaurant_name = ?";
 
-    db.query(sql, [email], async (err, results) => {
+    db.query(sql, [identifier, identifier, identifier], async (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
 
         if (results.length > 0) {
@@ -158,10 +158,10 @@ app.post('/api/login', (req, res) => {
                     }
                 });
             } else {
-                res.status(401).json({ message: "Invalid E-mail or password!\nPlease try again." });
+                res.status(401).json({ message: "Invalid credentials! Please try again." });
             }
         } else {
-            res.status(401).json({ message: "Invalid E-mail or password!\nPlease try again." });
+            res.status(401).json({ message: "User not found with the provided Email/Name/Restaurant." });
         }
     });
 });
@@ -265,18 +265,31 @@ app.delete('/api/delete-product/:id', async (req, res) => {
 
 // API for Add Category
 app.post('/api/add-category', (req, res) => {
-    const { name } = req.body;
-    const sql = "INSERT INTO categories (name) VALUES (?)";
-    db.query(sql, [name], (err, result) => {
-        if (err) return res.status(500).json({ error: err.message });
+    const { name, restaurant_id } = req.body;
+    /*if (!name || !restaurant_id) {
+        return res.status(400).json({ message: "Name and Restaurant ID are required!" });
+    }*/
+    const sql = "INSERT INTO categories (name, restaurant_id) VALUES (?, ?)";
+    db.query(sql, [name, restaurant_id], (err, result) => {
+        if (err) {
+            if(err.code === 'ER_DUP_ENTRY') {
+                return res.status(400).json({ error: "Category already exists in your menu!" });
+            }
+            return res.status(500).json({ error: err.message });
+        }
         res.status(201).json({ message: "Category added successfully!" });
     });
 });
 
 // API for get Category
 app.get('/api/get-categories', (req, res) => {
-    const sql = "SELECT id,  name FROM categories ORDER BY name ASC";
-    db.query(sql, (err, results) => {
+    const { restaurant_id } = req.query;
+    if (!restaurant_id) {
+        return res.status(400).json({ error: "Restaurant ID is required" });
+    }
+    //const sql = "SELECT * FROM categories WHERE restaurant_id = ? ORDER BY id DESC";
+    const sql = "SELECT name FROM categories WHERE restaurant_id = ? ORDER BY name ASC";
+    db.query(sql, [restaurant_id], (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(results); 
     });
@@ -400,6 +413,133 @@ app.patch('/api/update-all-status', (req, res) => {
         if (err) return res.is_available(500).json({ error: err.message });
         res.json({ message: "All items updated" });
     });
+});
+
+// API for Inventory List
+app.get('/api/inventory/:resId', (req, res) => {
+    const { resId } = req.params;
+    const sql = "SELECT id, name, price FROM products WHERE restaurant_id = ? AND is_available = 1";
+    db.query(sql, [resId], (err, results) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(results);
+    });
+});
+
+// API for Order info
+app.post('/api/save-order', async (req, res) => {
+    const { customer, items, billing, payment, subscription, restaurant_id } = req.body;
+    const conn = await db.promise();
+
+    try {
+        // Start Transaction
+        await conn.beginTransaction();
+
+        // ১. অর্ডার টেবিল এ ডাটা সেভ
+        const [orderResult] = await conn.query(
+            `INSERT INTO orders 
+            (restaurant_id, customer_name, customer_phone, customer_address, subtotal, discount, total_amount, paid_amount, due_amount, payment_method, order_status, reference) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                restaurant_id, 
+                customer.name, 
+                customer.mobile, 
+                customer.address, 
+                billing.subTotal, 
+                billing.discount, 
+                billing.finalTotal, 
+                billing.paidAmount, 
+                billing.dueAmount, 
+                payment.paymentMethod, // CASH or DIGITAL
+                subscription.status,   // Paid or Due
+                subscription.reference || null // Due হলে রেফারেন্স নাম
+            ]
+        );
+
+        const orderId = orderResult.insertId;
+
+        // ২. অর্ডার আইটেম টেবিল এ ডাটা সেভ
+        const itemValues = items.map(item => [
+            orderId, 
+            item.searchId, 
+            item.quantity, 
+            item.price, 
+            item.total
+        ]);
+
+        await conn.query(
+            `INSERT INTO order_items (order_id, product_id, quantity, price, total_price) VALUES ?`,
+            [itemValues]
+        );
+
+        await conn.commit();
+        res.status(201).json({ message: "Order saved successfully!", orderId });
+    } catch (error) {
+        await conn.rollback();
+        console.error("Order Save Error:", error);
+        res.status(500).json({ message: "Failed to save order", error: error.message });
+    }
+});
+
+app.get('/api/orders/:resId', async (req, res) => {
+    const { resId } = req.params;
+    try {
+        // promise() ব্যবহার করে কুয়েরি করা কারণ আপনি async/await ব্যবহার করছেন
+        const [rows] = await db.promise().query(
+            "SELECT * FROM orders WHERE restaurant_id = ? ORDER BY id DESC", 
+            [resId]
+        );
+        res.json(rows);
+    } catch (err) {
+        console.error("Fetch Orders Error:", err);
+        res.status(500).json({ error: "Failed to fetch orders" });
+    }
+});
+
+// --- স্ট্যাটাস আপডেট এপিআই ---
+app.put('/api/orders/status/:id', async (req, res) => {
+    const { status } = req.body;
+    const { id } = req.params;
+    try {
+        await db.promise().query(
+            "UPDATE orders SET order_status = ? WHERE id = ?", 
+            [status, id]
+        );
+        res.status(200).send("Status Updated Successfully");
+    } catch (err) {
+        console.error("Update Status Error:", err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- অর্ডার ডিলিট এপিআই ---
+app.delete('/api/orders/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const conn = db.promise();
+        await conn.query("DELETE FROM order_items WHERE order_id = ?", [id]);
+        await conn.query("DELETE FROM orders WHERE id = ?", [id]);
+        res.status(200).json({ message: "Order Deleted" });
+    } catch (err) {
+        console.error("Delete Error:", err);
+        res.status(500).json({ error: "Delete failed" });
+    }
+});
+
+app.get('/api/order-details/:orderId', async (req, res) => {
+    try {
+        const [items] = await db.promise().query(
+            `SELECT oi.*, p.name as product_name FROM order_items oi JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?`, 
+            [req.params.orderId]
+        );
+        const [orderInfo] = await db.promise().query(`SELECT * FROM orders WHERE id = ?`, [req.params.orderId]);
+        res.json({
+            items: items,
+            info: orderInfo[0]
+        });
+    } catch (err) {
+       console.error("Order Details Error:", err);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Server Port setup
