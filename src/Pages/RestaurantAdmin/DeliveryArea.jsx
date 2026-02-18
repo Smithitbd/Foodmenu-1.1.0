@@ -1,112 +1,93 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Edit3, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, MapPin, DollarSign, Search } from 'lucide-react';
+import { Edit3, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, MapPin, Search, PlusCircle, XCircle, CheckCircle2, ListFilter } from 'lucide-react';
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import { toast, Toaster } from 'react-hot-toast';
 
 const DeliveryArea = () => {
-  // State Management 
-  const [areas, setAreas] = useState([]); // For Store all Data
-  const [loading, setLoading] = useState(false); // Button Loading state
-  const [editId, setEditId] = useState(null); // for teack which id is edit 
-  const [formData, setFormData] = useState({ areaName: '', deliveryCharge: '' }); 
-  
-  // Table control State
-  const [searchTerm, setSearchTerm] = useState(''); 
-  const [entriesCount, setEntriesCount] = useState(10); 
-  const [currentPage, setCurrentPage] = useState(1); 
-  const [sortOrder, setSortOrder] = useState('none'); // Sorting order (Asc/Dec)
+  const resId = localStorage.getItem('resId'); 
+  const resName = localStorage.getItem('resName');
 
-  // Fetching Data from database 
+  const [areas, setAreas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [editId, setEditId] = useState(null);
+  const [formData, setFormData] = useState({ areaName: '', deliveryCharge: '' });
+  
+  const [searchTerm, setSearchTerm] = useState('');
+  const [entriesCount, setEntriesCount] = useState(10); // এক পেজে কয়টি ডাটা থাকবে
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState('none');
+
   const fetchAreas = async () => {
+    if (!resId || resId === "undefined") return;
     try {
-      const response = await axios.get('http://localhost:5000/api/delivery-areas');
+      const response = await axios.get(`http://localhost:5000/api/delivery-areas/${resId}`);
       setAreas(response.data);
     } catch (error) {
-      setAreas([
-        { _id: '1', areaName: 'Baghbari', deliveryCharge: 80 },
-        { _id: '2', areaName: 'Bondor Bazar', deliveryCharge: 65 },
-        { _id: '3', areaName: 'Chandi Ghat', deliveryCharge: 70 },
-        { _id: '4', areaName: 'Daripara', deliveryCharge: 30 },
-        { _id: '5', areaName: 'Hawapara', deliveryCharge: 60 },
-        { _id: '6', areaName: 'Kastoghar Rd', deliveryCharge: 70 },
-        { _id: '7', areaName: 'Kazir Bazar Bridge', deliveryCharge: 70 },
-        { _id: '8', areaName: 'Kazirkhola', deliveryCharge: 90 },
-      ]);
+      toast.error("Could not load delivery areas");
     }
   };
 
-  // fetching data when component are load
-  useEffect(() => { fetchAreas(); }, []);
+  useEffect(() => { fetchAreas(); }, [resId]);
 
-  //Data save and update logic
+  // যখনই সার্চ টার্ম বা এন্ট্রি কাউন্ট পাল্টাবে, পেজ ১-এ ফেরত যাবে
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, entriesCount]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.areaName || !formData.deliveryCharge) {
-      return Swal.fire('Error', 'Please fill all fields!', 'error');
+      return toast.error("Please fill all fields!");
     }
+
+    const payload = {
+      restaurant_id: parseInt(resId),   
+      areaName: formData.areaName,
+      deliveryCharge: parseFloat(formData.deliveryCharge)
+    };
+
     try {
       setLoading(true);
       if (editId) {
-        // Call update API
-        await axios.put(`http://localhost:5000/api/delivery-areas/${editId}`, formData);
-        Swal.fire({ icon: 'success', title: 'Updated!', showConfirmButton: false, timer: 1500 });
+        await axios.put(`http://localhost:5000/api/delivery-areas/${editId}`, payload);
+        toast.success("Area info updated!");
       } else {
-        // new save data call API
-        await axios.post('http://localhost:5000/api/delivery-areas', formData);
-        Swal.fire({ icon: 'success', title: 'Saved!', showConfirmButton: false, timer: 1500 });
+        await axios.post('http://localhost:5000/api/delivery-areas', payload);
+        toast.success("New area added successfully!");
       }
       setFormData({ areaName: '', deliveryCharge: '' });
       setEditId(null);
       fetchAreas();
     } catch (error) {
-      Swal.fire('Error', 'Action failed!', 'error');
+      toast.error("Failed to save data!");
     } finally {
       setLoading(false);
     }
   };
 
-  // confirmation message before Edit
-  const handleEditClick = (area) => {
-    Swal.fire({
-      title: 'Edit Area?',
-      text: `Do you want to edit ${area.areaName}?`,
-      icon: 'question',
-      showCancelButton: true,
-      confirmButtonColor: '#3085d6',
-      cancelButtonColor: '#aaa',
-      confirmButtonText: 'Yes, Edit'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        // state update when confirm
-        setEditId(area._id);
-        setFormData({ areaName: area.areaName, deliveryCharge: area.deliveryCharge });
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    });
-  };
-
-  // Data Delete logic
   const handleDelete = (id) => {
     Swal.fire({
       title: 'Are you sure?',
-      text: "You won't be able to revert this!",
+      text: "This action cannot be undone!",
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#EF4444',
-      cancelButtonColor: '#6B7280',
-      confirmButtonText: 'Yes, delete it!'
+      confirmButtonColor: '#F43F5E',
+      cancelButtonColor: '#64748B',
+      confirmButtonText: 'Yes, Delete',
+      borderRadius: '20px'
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
           await axios.delete(`http://localhost:5000/api/delivery-areas/${id}`);
           fetchAreas();
-          Swal.fire('Deleted!', 'Area has been deleted.', 'success');
-        } catch (err) { Swal.fire('Error', 'Delete failed', 'error'); }
+          toast.success('Removed successfully');
+        } catch (err) { toast.error("Delete failed"); }
       }
     });
   };
 
-  // Search and sorting logic
+  // ডাটা ফিল্টারিং এবং সর্টিং
   const processedData = useMemo(() => {
     let filtered = areas.filter(item => 
       item.areaName.toLowerCase().includes(searchTerm.toLowerCase())
@@ -116,192 +97,219 @@ const DeliveryArea = () => {
     return filtered;
   }, [areas, searchTerm, sortOrder]);
 
-  // Pagination logic
+  // প্যাজিনেশন লজিক
   const totalPages = Math.ceil(processedData.length / entriesCount);
   const currentTableData = processedData.slice((currentPage - 1) * entriesCount, currentPage * entriesCount);
 
   return (
-    <div className="bg-[#F3F4F6] min-h-screen font-sans antialiased text-slate-900">
-      {/* Header Section */}
-      <div className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto py-4 px-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <MapPin className="text-red-500" size={22} /> Delivery Area Management
-          </h2>
-          <span className="text-xs font-semibold bg-red-50 text-red-600 px-3 py-1 rounded-full border border-red-100 uppercase tracking-wider">Restaurant Panel</span>
+    <div className="bg-[#F1F5F9] min-h-screen font-sans antialiased pb-20">
+      <Toaster position="top-right" reverseOrder={false} />
+      
+      {/* --- HEADER (FIXED) --- */}
+      <div className="bg-white/80 backdrop-blur-md border-b border-slate-200 top-0 z-50 shadow-sm">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <div className="bg-rose-500 p-3 rounded-2xl shadow-lg shadow-rose-200">
+              <MapPin className="text-white" size={24} />
+            </div>
+            <div>
+              <h2 className="text-xl font-black text-slate-800 tracking-tight leading-none uppercase">Delivery Zones</h2>
+              <p className="text-xs text-slate-500 font-medium mt-1 uppercase tracking-wider">
+                Managing: <span className="text-rose-600 font-black">{resName}</span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6">
-        <div className="flex flex-col lg:flex-row gap-8">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
+        <div className="flex flex-col lg:flex-row items-start gap-8">
           
-          {/* Area add card */}
-          <div className="w-full lg:w-[350px]">
-            <div className="bg-white rounded-2xl shadow-xl border border-white p-6 sticky top-24">
-              <h3 className="text-lg font-bold mb-6 text-slate-800 border-b pb-3 uppercase tracking-tight">
-                {editId ? 'Edit Area' : 'Add New Area'}
-              </h3>
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="group">
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Area Name</label>
-                  <div className="relative">
-                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors" size={16} />
-                    <input 
-                      type="text" 
-                      value={formData.areaName}
-                      onChange={(e) => setFormData({...formData, areaName: e.target.value})}
-                      placeholder="e.g. Bondor Bazar" 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-slate-400" 
-                    />
-                  </div>
+          {/* --- STICKY FORM (LEFT SIDE) --- */}
+          <div className="w-full lg:w-[380px] lg:sticky lg:top-28 transition-all">
+            <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-white p-8">
+              <div className="flex items-center gap-3 mb-8">
+                <div className={`p-2 rounded-lg ${editId ? 'bg-amber-100 text-amber-600' : 'bg-rose-100 text-rose-600'}`}>
+                  {editId ? <Edit3 size={20} /> : <PlusCircle size={20} />}
                 </div>
+                <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">
+                  {editId ? 'Modify Zone' : 'New Zone'}
+                </h3>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase ml-1">Delivery Charge</label>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Area Name</label>
+                  <input 
+                    type="text" 
+                    value={formData.areaName}
+                    onChange={(e) => setFormData({...formData, areaName: e.target.value})}
+                    placeholder="e.g. UTTARA SECTOR 4" 
+                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-semibold focus:bg-white focus:border-rose-500 transition-all outline-none uppercase"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Charge (BDT)</label>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <span className="absolute left-5 top-1/2 -translate-y-1/2 font-bold text-slate-400">৳</span>
                     <input 
                       type="number" 
                       value={formData.deliveryCharge}
                       onChange={(e) => setFormData({...formData, deliveryCharge: e.target.value})}
                       placeholder="0.00" 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all" 
+                      className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl pl-10 pr-5 py-4 text-sm font-bold focus:bg-white focus:border-rose-500 transition-all outline-none"
                     />
                   </div>
                 </div>
+
                 <button 
                   type="submit" 
                   disabled={loading}
-                  className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg transition-all active:scale-95 flex justify-center items-center gap-2 ${editId ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200' : 'bg-red-400 hover:bg-red-600 text-white shadow-orange-200'}`}
+                  className={`w-full py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 ${editId ? 'bg-amber-500 shadow-amber-200' : 'bg-rose-500 shadow-rose-200'} text-white`}
                 >
-                  {loading ? 'Processing...' : (editId ? 'Update Area' : 'Save Area')}
+                  {loading ? 'Wait...' : (editId ? 'Update Info' : 'Add Zone')}
+                  {!loading && <CheckCircle2 size={18} />}
                 </button>
+                
                 {editId && (
-                  <button type="button" onClick={() => {setEditId(null); setFormData({areaName: '', deliveryCharge: ''})}} className="w-full text-xs font-bold text-slate-500 uppercase hover:text-slate-700 underline decoration-slate-300">Cancel Edit</button>
+                  <button type="button" onClick={() => {setEditId(null); setFormData({areaName: '', deliveryCharge: ''})}} className="w-full text-[11px] font-black text-slate-400 uppercase text-center hover:text-rose-500">Cancel Edit</button>
                 )}
               </form>
             </div>
           </div>
 
-          
-          <div className="flex-1 bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/50">
-              <div className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                <span>Show</span>
-                <select 
-                  value={entriesCount} 
-                  onChange={(e) => setEntriesCount(Number(e.target.value))}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                >
-                  {[5, 10, 20, 30, 50].map(n => <option key={n} value={n}>{n}</option>)}
-                </select> 
-                <span>entries</span>
-              </div>
+          {/* --- TABLE & PAGINATION (RIGHT SIDE) --- */}
+          <div className="flex-1 w-full">
+            <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-white overflow-hidden">
               
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                <input 
-                  type="text" 
-                  placeholder="Search areas..."
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-            </div>
-
-            {/* Main Table Design */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 text-[11px] uppercase tracking-widest font-bold text-slate-500 border-b border-slate-100">
-                    <th className="py-4 px-6 text-left w-16">#</th>
-                    <th className="py-4 px-6 text-left">Area Name</th>
-                    <th className="py-4 px-6 text-left">
-                      <button 
-                        onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                        className="flex items-center gap-2 hover:text-blue-600 transition-colors uppercase"
-                      >
-                        Charge <ArrowUpDown size={14} className={sortOrder !== 'none' ? 'text-blue-500' : 'text-slate-300'} />
-                      </button>
-                    </th>
-                    <th className="py-4 px-6 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {currentTableData.length > 0 ? currentTableData.map((area, index) => (
-                    <tr key={area._id} className="hover:bg-blue-50/30 transition-colors group">
-                      <td className="py-4 px-6 text-slate-400 font-medium text-xs">
-                        {String((currentPage - 1) * entriesCount + index + 1).padStart(2, '0')}
-                      </td>
-                      <td className="py-4 px-6 font-semibold text-slate-700">{area.areaName}</td>
-                      <td className="py-4 px-6">
-                        <span className="bg-green-50 text-green-700 px-2.5 py-1 rounded-lg text-sm font-bold border border-green-100">
-                          ৳ {area.deliveryCharge}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex justify-center items-center gap-2">
-                          <button 
-                            onClick={() => handleEditClick(area)} // Edit button logic
-                            className="bg-white border border-slate-200 text-slate-600 p-2 rounded-xl hover:bg-blue-600 hover:text-white hover:border-blue-600 transition-all shadow-sm"
-                            title="Edit"
-                          >
-                            <Edit3 size={15} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(area._id)} // Delete button logic
-                            className="bg-white border border-slate-200 text-slate-600 p-2 rounded-xl hover:bg-red-600 hover:text-white hover:border-red-600 transition-all shadow-sm"
-                            title="Delete"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  )) : (
-                    <tr>
-                      <td colSpan="4" className="py-20 text-center text-slate-400 italic">No areas found.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* pagination Navigation logic */}
-            <div className="p-6 bg-slate-50/30 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-tighter">
-                Showing {processedData.length > 0 ? (currentPage - 1) * entriesCount + 1 : 0} to {Math.min(currentPage * entriesCount, processedData.length)} of {processedData.length} entries
-              </p>
-              
-              <div className="flex items-center gap-1">
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronLeft size={18} />
-                </button>
-                
-                <div className="flex gap-1">
-                  {[...Array(totalPages)].map((_, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => setCurrentPage(i + 1)}
-                      className={`w-9 h-9 rounded-lg border text-xs font-bold transition-all ${currentPage === i + 1 ? 'bg-blue-600 border-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-400'}`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
+              {/* Toolbar */}
+              <div className="p-6 sm:p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between items-center gap-6">
+                <div className="relative w-full md:w-80">
+                   <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                   <input 
+                     type="text" 
+                     placeholder="Search location..."
+                     className="w-full bg-slate-50 border-2 border-slate-50 rounded-2xl pl-14 pr-6 py-3.5 text-sm font-semibold focus:bg-white focus:border-rose-400 outline-none transition-all"
+                     onChange={(e) => setSearchTerm(e.target.value)}
+                   />
                 </div>
 
-                <button 
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronRight size={18} />
-                </button>
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 px-3 py-2 rounded-xl">
+                    <ListFilter size={14} className="text-slate-400" />
+                    <select 
+                      value={entriesCount}
+                      onChange={(e) => setEntriesCount(Number(e.target.value))}
+                      className="bg-transparent text-[11px] font-bold text-slate-600 outline-none cursor-pointer"
+                    >
+                      <option value={5}>Show 5</option>
+                      <option value={10}>Show 10</option>
+                      <option value={20}>Show 20</option>
+                      <option value={50}>Show 50</option>
+                    </select>
+                  </div>
+                  <div className="bg-slate-900 text-white px-5 py-2 rounded-xl text-center">
+                    <p className="text-[10px] font-bold uppercase opacity-60 leading-none">Total</p>
+                    <p className="text-base font-black leading-none mt-1">{processedData.length}</p>
+                  </div>
+                </div>
               </div>
+              
+              {/* Table */}
+              <div className="overflow-x-auto px-4 pb-4">
+                <table className="w-full text-left border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-[11px] font-black uppercase tracking-[2px] text-slate-400">
+                      <th className="px-6 py-4">#</th>
+                      <th className="px-6 py-4">Zone Name</th>
+                      <th className="px-6 py-4 cursor-pointer group" onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}>
+                        <div className="flex items-center gap-2 group-hover:text-rose-500 transition-colors">
+                          Charge <ArrowUpDown size={14} className="opacity-50" />
+                        </div>
+                      </th>
+                      <th className="px-6 py-4 text-right pr-10">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentTableData.map((area, i) => (
+                      <tr key={area.id} className="group bg-white hover:bg-slate-50 border border-slate-100 rounded-2xl transition-all shadow-sm">
+                        <td className="px-6 py-5 text-xs font-bold text-slate-300 rounded-l-2xl">
+                          {String((currentPage-1)*entriesCount + i + 1).padStart(2, '0')}
+                        </td>
+                        <td className="px-6 py-5 font-bold text-slate-700 uppercase tracking-tight">
+                          {area.areaName}
+                        </td>
+                        <td className="px-6 py-5">
+                          <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-xl text-xs font-black border border-emerald-100">
+                            ৳ {area.deliveryCharge}
+                          </span>
+                        </td>
+                        <td className="px-6 py-5 rounded-r-2xl pr-10">
+                          <div className="flex justify-end gap-2">
+                            <button onClick={() => {setEditId(area.id); setFormData({areaName: area.areaName, deliveryCharge: area.deliveryCharge}); window.scrollTo({top:0, behavior:'smooth'})}} className="p-3 bg-blue-50 text-blue-500 rounded-xl hover:bg-blue-500 hover:text-white transition-all"><Edit3 size={16}/></button>
+                            <button onClick={() => handleDelete(area.id)} className="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all"><Trash2 size={16}/></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {/* Empty State */}
+                {currentTableData.length === 0 && (
+                  <div className="text-center py-20 opacity-30 flex flex-col items-center">
+                    <MapPin size={48} />
+                    <p className="mt-2 font-black uppercase tracking-widest">No areas found</p>
+                  </div>
+                )}
+              </div>
+
+              {/* --- PAGINATION CONTROLS --- */}
+              <div className="p-8 border-t border-slate-50 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-center gap-6">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  Showing <span className="text-slate-800">{(currentPage-1)*entriesCount + 1}</span> to <span className="text-slate-800">{Math.min(currentPage*entriesCount, processedData.length)}</span> of <span className="text-slate-800">{processedData.length}</span> entries
+                </p>
+                
+                <div className="flex items-center gap-2">
+                  <button 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    className={`p-2 rounded-xl border transition-all ${currentPage === 1 ? 'bg-white text-slate-200 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-500 hover:text-rose-500 shadow-sm'}`}
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {[...Array(totalPages)].map((_, index) => {
+                      const pageNum = index + 1;
+                      // বড় লিস্ট হলে সব পেজ নম্বর না দেখিয়ে শুধু কারেন্ট পেজ দেখানোর জন্য এই লজিক
+                      if (totalPages > 5 && Math.abs(currentPage - pageNum) > 1 && pageNum !== 1 && pageNum !== totalPages) {
+                        if (pageNum === 2 || pageNum === totalPages - 1) return <span key={pageNum} className="px-1">...</span>;
+                        return null;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-10 h-10 rounded-xl text-xs font-black transition-all ${currentPage === pageNum ? 'bg-rose-500 text-white shadow-lg shadow-rose-200' : 'bg-white text-slate-400 border border-slate-100 hover:border-rose-200'}`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button 
+                    disabled={currentPage === totalPages || totalPages === 0}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    className={`p-2 rounded-xl border transition-all ${currentPage === totalPages || totalPages === 0 ? 'bg-white text-slate-200 border-slate-100 cursor-not-allowed' : 'bg-white text-slate-600 border-slate-200 hover:border-rose-500 hover:text-rose-500 shadow-sm'}`}
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+
             </div>
           </div>
 
