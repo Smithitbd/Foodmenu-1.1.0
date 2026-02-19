@@ -5,44 +5,37 @@ import {
 } from 'recharts';
 import { TrendingUp, Package, AlertCircle, DollarSign, Calendar } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
-// import axios from 'axios'; 
+import axios from 'axios'; 
 
 const GraphReport = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Backend and database logics 
-  /*
-  const API_URL = 'http://localhost:5000/api/reports/graph';
-
-  useEffect(() => {
-    const fetchGraphData = async () => {
-      setLoading(true);
-      try {
-        const response = await axios.get(API_URL);
-        setData(response.data);
+  const fetchGraphData = async() =>{
+    const restaurantId = localStorage.getItem('resId');
+    if (!restaurantId) {
+      toast.error("Please login first!");
+      return;
+    }
+    setLoading(true);
+    try{
+      const response = await axios.get(`http://localhost:5000/api/reports/graph`,{
+        params: { resId: restaurantId}
+      });
+      setData(response.data);
+      if(response.data.length > 0) {
         toast.success("Graph data synced!");
-      } catch (error) {
-        toast.error("Failed to fetch data from database");
-      } finally {
-        setLoading(false);
       }
-    };
-    fetchGraphData();
-  }, []);
-  */
+    }catch(error){
+      console.error("Fetch error:", error);
+      toast.error("Failed to fetch graph data");
+    }finally {
+      setLoading(false);
+    }
+  };
 
-  // Dummy data
   useEffect(() => {
-    const dummyGraphData = [
-      { name: 'Jan', earning: 4000, due: 2400, qty: 400 },
-      { name: 'Feb', earning: 3000, due: 1398, qty: 300 },
-      { name: 'Mar', earning: 2000, due: 9800, qty: 200 },
-      { name: 'Apr', earning: 2780, due: 3908, qty: 278 },
-      { name: 'May', earning: 1890, due: 4800, qty: 189 },
-      { name: 'Jun', earning: 2390, due: 3800, qty: 239 },
-    ];
-    setData(dummyGraphData);
+    fetchGraphData();
   }, []);
 
   //Calculation 
@@ -191,38 +184,5 @@ const GraphReport = () => {
     </div>
   );
 };
-
-// ==========================================
-// Backend and database code  (Node.js/Express) ---
-// ==========================================
-/*
-const express = require('express');
-const router = express.Router();
-const Order = require('../models/Order'); 
-
-router.get('/graph', async (req, res) => {
-    try {
-        // Last 6 month data aggregation
-        const graphData = await Order.aggregate([
-            {
-                $group: {
-                    _id: { $month: "$createdAt" }, 
-                    earning: { $sum: "$totalAmount" },
-                    due: { $sum: "$dueAmount" },
-                    qty: { $sum: "$totalQuantity" }
-                }
-            },
-            { $sort: { "_id": 1 } }
-        ]);
-
-        
-        res.json(graphData);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
-
-module.exports = router;
-*/
 
 export default GraphReport;

@@ -7,37 +7,44 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
-import sharp from 'sharp';  
 
 const app = express();
 const saltRounds = 10;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadDir = path.resolve(__dirname, 'uploads');
+const uploadDir = path.join(__dirname, 'uploads');
 
+// ফোল্ডার না থাকলে তৈরি করবে
 if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer Storage Configuration
-const storage = multer.memoryStorage();
+// --- Multer Configuration ---
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
+});
 const upload = multer({ storage: storage });
 
-// MiddleWare
 app.use(cors());
 app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
 
-// --- DATABASE CONNECTION (FIXED FOR ASYNC/AWAIT) ---
+// --- Database Connection ---
 const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '',
     database: 'foodmenubd',
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
-}).promise(); // এই .promise() আপনার await ফাংশনগুলোকে কাজ করাবে
+    connectionLimit: 10
+}).promise();
 
 console.log('Successfully connected to the MySql Database via Pool!');
 
@@ -422,6 +429,130 @@ app.put('/api/shops/:id', upload.fields([{ name: 'logo' }, { name: 'bgImage' }])
         res.json({ message: "Updated successfully and old files removed!" });
     } catch (error) {
         res.status(500).json({ error: error.message });
+    }
+});
+
+//API for reports (graph+table)
+app.get('/api/reports', async (req, res) => {
+    const { resId, from, to } = req.query; 
+
+    if (!resId || resId === 'null') {
+        return res.status(400).json({ error: "Restaurant ID is missing!" });
+    }
+
+    try {
+        let sql = "SELECT * FROM orders WHERE restaurant_id = ?";
+        let params = [resId];
+
+        // আপনার SQL এ তারিখের কলামের নাম 'created_at'
+        if (from && to && from !== "" && to !== "") {
+            sql += " AND DATE(created_at) BETWEEN ? AND ?";
+            params.push(from, to);
+        }
+
+        sql += " ORDER BY id DESC";
+
+        const [rows] = await db.query(sql, params);
+        res.json(rows);
+    } catch (error) {
+        console.error("Database Error:", error);
+        res.status(500).json({ error: "Internal Server Error", details: error.message });
+    }
+});
+
+app.get('/api/reports/graph', async (req, res) => {
+    const { resId } = req.query;
+
+    if (!resId) {
+        return res.status(400).json({ error: "Restaurant ID is missing!" });
+    }
+
+    try {
+        // গত ৬ মাসের ডাটা মাসের নাম অনুযায়ী গ্রুপিং করার কুয়েরি
+        const sql = `
+            SELECT 
+                MONTHNAME(created_at) as name, 
+                SUM(total_amount) as earning, 
+                SUM(due_amount) as due, 
+                SUM(id) as qty 
+            FROM orders 
+            WHERE restaurant_id = ? 
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+            GROUP BY MONTH(created_at), name
+            ORDER BY MONTH(created_at) ASC
+        `;
+        
+        // নোট: 'qty' এর জন্য আপনার টেবিলে আলাদা কলাম থাকলে সেটি SUM করবেন, 
+        // আমি আপাতত অর্ডারের সংখ্যা বা আইডি কাউন্ট হিসেবে দেখাচ্ছি।
+
+        const [rows] = await db.query(sql, [resId]);
+        res.json(rows);
+    } catch (error) {
+        console.error("Graph Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+//Api for edit restaurant
+app.put('/api/restaurant/update-all/:id', upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'cover', maxCount: 1 } // এখানে 'cover' দিয়েছি কারণ আপনার ফ্রন্টএন্ডে cover পাঠানো হচ্ছে
+]), async (req, res) => {
+    const resId = req.params.id;
+    const { restaurant_name, location, contact_mobile, slug } = req.body;
+    const files = req.files;
+
+    try {
+        // ১. ডাটাবেস থেকে বর্তমান ফাইলের নাম নেওয়া (আপনার DB কলাম bg_image)
+        const [oldData] = await db.query("SELECT logo, bg_image FROM restaurants WHERE id = ?", [resId]);
+        
+        if (!oldData || oldData.length === 0) {
+            return res.status(404).json({ error: "রিস্টোরেন্ট খুঁজে পাওয়া যায়নি!" });
+        }
+
+        let logoFileName = oldData[0].logo;
+        let bgImageName = oldData[0].bg_image; 
+
+        // ২. লোগো আপডেট লজিক
+        if (files && files.logo) {
+            if (logoFileName) {
+                const oldPath = path.join(uploadDir, logoFileName);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+            logoFileName = files.logo[0].filename;
+        }
+
+        // ৩. ব্যাকগ্রাউন্ড ইমেজ আপডেট লজিক (কলাম: bg_image, ইনপুট কি: cover)
+        if (files && files.cover) {
+            if (bgImageName) {
+                const oldPath = path.join(uploadDir, bgImageName);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+            bgImageName = files.cover[0].filename;
+        }
+
+        // ৪. ডাটাবেস আপডেট কুয়েরি
+        const sql = `
+            UPDATE restaurants 
+            SET restaurant_name = ?, location = ?, contact_mobile = ?, slug = ?, logo = ?, bg_image = ?
+            WHERE id = ?
+        `;
+        
+        const [result] = await db.query(sql, [
+            restaurant_name, 
+            location, 
+            contact_mobile, 
+            slug, 
+            logoFileName, 
+            bgImageName, 
+            resId
+        ]);
+
+        res.json({ success: true, message: "সব কিছু ঠিকঠাক আপডেট হয়েছে!" });
+
+    } catch (error) {
+        console.error("Update Error:", error);
+        res.status(500).json({ error: "সার্ভার এরর: ডাটা সেভ হচ্ছে না।" });
     }
 });
 

@@ -1,282 +1,207 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  Calendar, Search, Printer, FileText, 
-  Hash, Calculator, Banknote 
-} from 'lucide-react';
+import { Calendar, Search, Printer, FileText, Hash, Calculator, Banknote, RefreshCw } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Swal from 'sweetalert2';
-// import axios from 'axios'; 
+import axios from 'axios'; 
 
 const TableReport = () => {
   const [reportData, setReportData] = useState([]);
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  // 1. Database/Backend Logic 
-  /*
-  const API_URL = 'http://localhost:5000/api/reports';
+  // ১. লোকাল স্টোরেজ থেকে ওনারের ইমেইল নেওয়া
+  const restaurantId = localStorage.getItem('resId');
 
   const fetchReportData = async () => {
+    const restaurantId = localStorage.getItem('resId');
+    if (!restaurantId) {
+      toast.error("User not authenticated!");
+      return;
+    }
+
     try {
-      // API for data filter by date
-      const response = await axios.get(`${API_URL}?from=${fromDate}&to=${toDate}`);
+      setLoading(true);
+      // ব্যাকএন্ডে ইমেইল এবং ডেট পাঠানো হচ্ছে
+      const response = await axios.get(`http://localhost:5000/api/reports`, {
+        params: {
+          resId: restaurantId,
+          from: fromDate,
+          to: toDate
+        }
+      });
       setReportData(response.data);
-      toast.success("Data synced with database!");
     } catch (error) {
-      toast.error("Failed to connect to backend!");
+      console.error("Fetch error:", error);
+      toast.error("Failed to fetch report data!");
+    } finally {
+      setLoading(false);
     }
   };
-  */
 
-  // Dummy Data
+  // পেজ লোড হওয়ার সময় ডাটা নিয়ে আসা
   useEffect(() => {
-    const dummyReports = [
-      { id: "2001", name: "Sabbir Ahmed", subtotal: 1500, discount: 100, total: 1400, paid: 1400, due: 0, date: "2026-02-01", type: "CASH" },
-      { id: "2002", name: "Jasim Uddin", subtotal: 3000, discount: 200, total: 2800, paid: 2000, due: 800, date: "2026-02-02", type: "BKASH" },
-      { id: "2003", name: "Mitu Akter", subtotal: 1200, discount: 0, total: 1200, paid: 1200, due: 0, date: "2026-02-03", type: "CARD" },
-    ];
-    setReportData(dummyReports);
+    fetchReportData();
   }, []);
 
-  //Calculation Logic
+  // পরিসংখ্যান ক্যালকুলেশন
   const stats = useMemo(() => {
     const totalInvoice = reportData.length;
-    const subTotalSum = reportData.reduce((sum, item) => sum + item.subtotal, 0);
-    const netTotalSum = reportData.reduce((sum, item) => sum + item.total, 0);
+    const subTotalSum = reportData.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
+    const netTotalSum = reportData.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
     return { totalInvoice, subTotalSum, netTotalSum };
-  }, [reportData]);
+}, [reportData]);
 
-  // Search Logic
+  // সার্চ লজিক
   const filteredData = useMemo(() => {
     return reportData.filter(item => 
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      item.id.includes(searchTerm)
+      item.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      item.id.toString().includes(searchTerm)
     );
   }, [searchTerm, reportData]);
 
   const handleFilterByDate = () => {
     if(!fromDate || !toDate) {
-      Swal.fire('Incomplete!', 'Please select both dates.', 'warning');
+      Swal.fire('Warning', 'Select both dates to filter.', 'warning');
       return;
     }
-    toast.success(`Filtering reports from ${fromDate} to ${toDate}`);
-    // fetchReportData(); // When backend conected remove comment 
+    fetchReportData();
   };
 
   const handlePrint = () => {
-    toast.loading("Preparing report...", { duration: 1500 });
-    setTimeout(() => window.print(), 1600);
+    window.print();
   };
 
   return (
-    <div className="bg-[#f4f7f6] min-h-screen p-4 md:p-8 font-sans">
+    <div className="bg-[#f4f7f6] min-h-screen p-4 md:p-8">
       <Toaster position="top-right" />
       
-      <div className="max-w-[1400px] mx-auto bg-white rounded-lg shadow-md border-t-[4px] border-[#d9534f]">
+      <div className="max-w-[1400px] mx-auto bg-white rounded-xl shadow-lg border-t-[5px] border-red-500 overflow-hidden">
         
-        {/* Header Section */}
-        <div className="p-4 border-b flex items-center gap-2">
-          <FileText className="text-gray-600" />
-          <h1 className="text-2xl font-bold text-gray-700">Table Report</h1>
-        </div>
-
-        {/* Filters Section */}
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-4 no-print">
-          <div className="flex items-center gap-2 border rounded p-2 focus-within:ring-2 ring-red-100">
-            <Calendar size={20} className="text-gray-400" />
-            <input 
-              type="date" 
-              className="w-full outline-none text-sm" 
-              placeholder="From Date"
-              onChange={(e) => setFromDate(e.target.value)}
-            />
+        {/* Header */}
+        <div className="p-6 border-b flex justify-between items-center bg-gray-50/50">
+          <div className="flex items-center gap-3">
+            <div className="bg-red-500 p-2 rounded-lg text-white">
+                <FileText size={24} />
+            </div>
+            <h1 className="text-2xl font-black text-gray-800 uppercase italic">Restaurant <span className="text-red-600">Sales Report</span></h1>
           </div>
-          <div className="flex items-center gap-2 border rounded p-2 focus-within:ring-2 ring-red-100">
-            <Calendar size={20} className="text-gray-400" />
-            <input 
-              type="date" 
-              className="w-full outline-none text-sm" 
-              placeholder="To Date"
-              onChange={(e) => setToDate(e.target.value)}
-            />
-          </div>
-          <button 
-            onClick={handleFilterByDate}
-            className="bg-[#28a745] text-white font-bold py-2 px-6 rounded hover:bg-green-600 transition-colors shadow-sm"
-          >
-            Filter By Date
+          <button onClick={fetchReportData} className="p-2 hover:rotate-180 transition-all duration-500 text-gray-400">
+             <RefreshCw size={20} />
           </button>
         </div>
 
-        {/* Stats Cards Section */}
-        <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Total Invoice */}
-          <div className="flex items-center border rounded-lg overflow-hidden shadow-sm bg-white group hover:shadow-md transition-shadow">
-            <div className="bg-[#00c0ef] p-6 text-white group-hover:bg-[#00acd6]">
-              <Hash size={40} />
-            </div>
-            <div className="p-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">Total Invoice</p>
-              <h2 className="text-3xl font-black text-gray-800">{stats.totalInvoice}</h2>
+        {/* Filters */}
+        <div className="p-6 grid grid-cols-1 md:grid-cols-4 gap-4 no-print items-end">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 ml-1">From Date</label>
+            <div className="flex items-center gap-2 border rounded-xl p-3 bg-gray-50">
+              <Calendar size={18} className="text-red-500" />
+              <input type="date" className="bg-transparent outline-none text-sm w-full font-bold" onChange={(e) => setFromDate(e.target.value)} />
             </div>
           </div>
-
-          {/* Sub Total */}
-          <div className="flex items-center border rounded-lg overflow-hidden shadow-sm bg-white group hover:shadow-md transition-shadow">
-            <div className="bg-[#00a65a] p-6 text-white group-hover:bg-[#008d4c]">
-              <Calculator size={40} />
-            </div>
-            <div className="p-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">Sub Total</p>
-              <h2 className="text-3xl font-black text-gray-800">৳{stats.subTotalSum.toFixed(2)}</h2>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase text-gray-400 ml-1">To Date</label>
+            <div className="flex items-center gap-2 border rounded-xl p-3 bg-gray-50">
+              <Calendar size={18} className="text-red-500" />
+              <input type="date" className="bg-transparent outline-none text-sm w-full font-bold" onChange={(e) => setToDate(e.target.value)} />
             </div>
           </div>
-
-          {/* Net Total */}
-          <div className="flex items-center border rounded-lg overflow-hidden shadow-sm bg-white group hover:shadow-md transition-shadow">
-            <div className="bg-[#f39c12] p-6 text-white group-hover:bg-[#e08e0b]">
-              <Banknote size={40} />
-            </div>
-            <div className="p-4">
-              <p className="text-gray-500 text-xs font-bold uppercase tracking-wider">Net Total</p>
-              <h2 className="text-3xl font-black text-gray-800">৳{stats.netTotalSum.toFixed(2)}</h2>
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Meta Section */}
-        <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4 border-t no-print">
-          <div className="text-[#28a745] font-bold text-xl italic">
-            From : <span className="text-gray-400">{fromDate || "---"}</span> To: <span className="text-gray-400">{toDate || "---"}</span>
-          </div>
-          <div className="relative">
-            <input 
-              type="text" 
-              placeholder="Search Tablereport item..." 
-              className="border-2 border-green-500 rounded-full px-4 py-1 pl-10 w-64 md:w-80 outline-none focus:shadow-lg transition-all"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <Search className="absolute left-3 top-2 text-green-500" size={18} />
-          </div>
-        </div>
-
-        {/* Report Table */}
-        <div className="px-6 overflow-x-auto pb-4">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
-            <thead>
-              <tr className="text-sm font-bold text-gray-700 border-b">
-                <th className="p-3">Invoice ID</th>
-                <th className="p-3">CustomerName</th>
-                <th className="p-3">Subtotal</th>
-                <th className="p-3">Discount</th>
-                <th className="p-3">Total</th>
-                <th className="p-3">Paid</th>
-                <th className="p-3">Due</th>
-                <th className="p-3">OrderDate</th>
-                <th className="p-3">Payment Type</th>
-              </tr>
-            </thead>
-            <tbody className="text-[13px] text-gray-600">
-              {filteredData.length > 0 ? filteredData.map((item, index) => (
-                <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
-                  <td className="p-3 font-semibold">#{item.id}</td>
-                  <td className="p-3 text-gray-900">{item.name}</td>
-                  <td className="p-3">৳{item.subtotal}</td>
-                  <td className="p-3 text-red-500">-৳{item.discount}</td>
-                  <td className="p-3 font-bold text-gray-800">৳{item.total}</td>
-                  <td className="p-3 text-green-600 font-semibold">৳{item.paid}</td>
-                  <td className="p-3 text-red-600 font-bold">৳{item.due}</td>
-                  <td className="p-3">{item.date}</td>
-                  <td className="p-3 uppercase font-medium">{item.type}</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan="9" className="text-center p-10 text-gray-400 italic">No data found in report</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Print Button Section */}
-        <div className="p-6 text-center no-print">
-          <button 
-            onClick={handlePrint}
-            className="bg-[#00c0ef] text-white px-10 py-2 rounded shadow hover:bg-[#00acd6] transition-all font-bold uppercase tracking-wider flex items-center gap-2 mx-auto"
-          >
-            <Printer size={18} /> Print Report
+          <button onClick={handleFilterByDate} className="bg-gray-900 text-white font-black py-4 px-6 rounded-xl hover:bg-red-600 transition-all shadow-lg uppercase text-[11px] tracking-widest">
+            Generate Report
           </button>
+          <button onClick={handlePrint} className="bg-blue-600 text-white font-black py-4 px-6 rounded-xl hover:bg-blue-700 transition-all shadow-lg uppercase text-[11px] tracking-widest flex justify-center items-center gap-2">
+            <Printer size={16} /> Print
+          </button>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="px-6 pb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <StatCard icon={<Hash/>} label="Total Invoice" value={stats.totalInvoice} color="bg-cyan-500" />
+          <StatCard icon={<Calculator/>} label="Gross Subtotal" value={`৳${stats.subTotalSum.toFixed(2)}`} color="bg-green-500" />
+          <StatCard icon={<Banknote/>} label="Net Revenue" value={`৳${stats.netTotalSum.toFixed(2)}`} color="bg-orange-500" />
+        </div>
+
+        {/* Search Bar */}
+        <div className="px-6 py-4 bg-gray-50 border-y flex justify-between items-center no-print">
+            <p className="text-xs font-bold text-gray-400 uppercase">Showing report for: <span className="text-red-500">{restaurantId}</span></p>
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <input 
+                    type="text" 
+                    placeholder="Search by ID or Name..." 
+                    className="pl-10 pr-4 py-2 border rounded-full text-sm outline-none focus:ring-2 ring-red-100 w-64 md:w-80 transition-all"
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+        </div>
+
+        {/* Table */}
+        <div className="p-6 overflow-x-auto">
+          {loading ? (
+            <div className="py-20 text-center font-black uppercase tracking-widest text-gray-300 animate-pulse">Loading Report Data...</div>
+          ) : (
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead>
+                <tr className="text-[11px] font-black text-gray-400 uppercase border-b bg-gray-50">
+                  <th className="p-4">Inv ID</th>
+                  <th className="p-4">Customer</th>
+                  <th className="p-4">Subtotal</th>
+                  <th className="p-4">Discount</th>
+                  <th className="p-4">Net Total</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4">Date</th>
+                  <th className="p-4">Payment</th>
+                </tr>
+              </thead>
+              <tbody className="text-sm">
+                {filteredData.map((item, index) => (
+                  <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                    <td className="p-4 font-bold text-gray-800">#{item.id}</td>
+                    <td className="p-4 font-medium">{item.customer_name || 'Walking Customer'}</td>
+                    <td className="p-4 text-gray-500">৳{item.subtotal || 0}</td>
+                    <td className="p-4 text-red-500">-৳{item.discount || 0}</td>
+                    <td className="p-4 font-black text-gray-900">৳{item.total_amount}</td>
+                    <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${Number(item.due_amount) > 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                            {Number(item.due_amount) > 0 ? `Due: ৳${item.due_amount}` : 'Paid'}
+                        </span>
+                    </td>
+                    {/* তারিখ ফরম্যাট করার জন্য slice ব্যবহার করা হয়েছে */}
+                    <td className="p-4 text-gray-400 text-xs font-bold">{item.created_at ? item.created_at.slice(0, 10) : 'N/A'}</td>
+                    <td className="p-4"><span className="bg-gray-100 px-2 py-1 rounded font-bold text-[10px] uppercase">{item.payment_method}</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
-
+      
+      {/* CSS for Print */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
-          body { background: white; padding: 0; }
-          .max-w-[1400px] { box-shadow: none; border: none; width: 100%; max-width: 100%; }
+          body { background: white !important; }
+          .shadow-lg { box-shadow: none !important; border: 1px solid #eee !important; }
         }
       `}</style>
     </div>
   );
 };
 
-// ==========================================
-// --- 2. BACKEND & DATABASE CODE (Node.js/Express) ---
-// ==========================================
-/*
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-// MongoDB Connection
-mongoose.connect('mongodb://localhost:27017/pos_system', {
-    useNewUrlParser: true,
-    useUnifiedTopology: true
-});
-
-// Order Schema (Data will come from here)
-const OrderSchema = new mongoose.Schema({
-    id: String,
-    name: String,
-    subtotal: Number,
-    discount: Number,
-    total: Number,
-    paid: Number,
-    due: Number,
-    date: String,
-    type: String
-}, { timestamps: true });
-
-const Order = mongoose.model('Order', OrderSchema);
-
-// GET Report API with Date Range Filter
-app.get('/api/reports', async (req, res) => {
-    try {
-        const { from, to } = req.query;
-        let query = {};
-        
-        // date filtering Logic
-        if (from && to) {
-            query.date = { 
-                $gte: from, 
-                $lte: to 
-            };
-        }
-
-        const reports = await Order.find(query).sort({ date: -1 });
-        res.status(200).json(reports);
-    } catch (err) {
-        res.status(500).json({ message: "Server Error", error: err });
-    }
-});
-
-app.listen(5000, () => console.log('Server running on port 5000'));
-*/
+// স্ট্যাট কার্ড কম্পোনেন্ট
+const StatCard = ({ icon, label, value, color }) => (
+  <div className="flex items-center border rounded-2xl overflow-hidden shadow-sm bg-white group hover:shadow-md transition-all">
+    <div className={`${color} p-6 text-white`}>
+      {React.cloneElement(icon, { size: 32 })}
+    </div>
+    <div className="p-4">
+      <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">{label}</p>
+      <h2 className="text-2xl font-black text-gray-800">{value}</h2>
+    </div>
+  </div>
+);
 
 export default TableReport;
