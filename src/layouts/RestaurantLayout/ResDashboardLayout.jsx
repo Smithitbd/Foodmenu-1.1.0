@@ -26,22 +26,31 @@ const DashboardLayout = () => {
 
   const [resName, setResName] = useState(localStorage.getItem('resName'));
   const [resLogo, setResLogo] = useState(localStorage.getItem('resLogo'));
-  useEffect(() => {
-    const syncDashboard = async () => {
-      const resId = localStorage.getItem('resId');
-      if (!resId) return;
-      try{
-        const res = await axios.get(`http://localhost:5000/api/dashboard-stats/${resId}`);
-        setIsStoreOpen(res.data.status === 'active');
-        setResName(res.data.name);
-        setResLogo(res.data.logo);
-        localStorage.setItem('resName', res.data.name);
-      }catch(error){
-        console.error("Layout Sync Error:", error);
-      }
-    };
+
+
+useEffect(() => {
+  const syncDashboard = async () => {
+    const resId = localStorage.getItem('resId');
+    if (!resId) return;
+    try {
+      const res = await axios.get(`http://localhost:5000/api/restaurant/${resId}`);
+      
+      // সঠিক ডেটা সেট করা
+      setIsStoreOpen(res.data.status === 'active');
+      setResName(res.data.restaurant_name);
+      
+      // ইমেজ পাথ তৈরি করা (আপনার আপলোড ফোল্ডার অনুযায়ী)
+      const formattedLogo = `http://localhost:5000/uploads/${res.data.logo}`;
+      setResLogo(formattedLogo);
+      
+      localStorage.setItem('resName', res.data.restaurant_name);
+      localStorage.setItem('resLogo', formattedLogo); // এখানে logoUrl এর বদলে formattedLogo হবে
+    } catch (error) {
+      console.error("Layout Sync Error:", error);
+    }
+  };
   syncDashboard();
-  }, []);
+}, []);
 
   const restaurantInfo = {
     name: resName,

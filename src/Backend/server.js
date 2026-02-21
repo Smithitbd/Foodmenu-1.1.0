@@ -494,65 +494,102 @@ app.get('/api/reports/graph', async (req, res) => {
 });
 
 //Api for edit restaurant
+app.get('/api/restaurant/:id', async (req, res) => {
+    try {
+        const [rows] = await db.query("SELECT * FROM restaurants WHERE id = ?", [req.params.id]);
+        if (rows.length > 0) {
+            res.json(rows[0]);
+        } else {
+            res.status(404).json({ error: "Restaurant not found" });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// --- চুড়ান্ত ফিক্সড আপডেট এপিআই (সব কলাম এবং ফাইল সিঙ্ক করা) ---
+
 app.put('/api/restaurant/update-all/:id', upload.fields([
     { name: 'logo', maxCount: 1 },
-    { name: 'cover', maxCount: 1 } // এখানে 'cover' দিয়েছি কারণ আপনার ফ্রন্টএন্ডে cover পাঠানো হচ্ছে
+    { name: 'cover', maxCount: 1 }
 ]), async (req, res) => {
-    const resId = req.params.id;
+    const { id } = req.params;
     const { restaurant_name, location, contact_mobile, slug } = req.body;
-    const files = req.files;
+    
+    // নতুন ইমেজ থাকলে সেটি নিন, না থাকলে পুরানোটাই রাখুন
+    let logoFile = req.files['logo'] ? req.files['logo'][0].filename : null;
+    let coverFile = req.files['cover'] ? req.files['cover'][0].filename : null;
 
     try {
-        // ১. ডাটাবেস থেকে বর্তমান ফাইলের নাম নেওয়া (আপনার DB কলাম bg_image)
-        const [oldData] = await db.query("SELECT logo, bg_image FROM restaurants WHERE id = ?", [resId]);
-        
-        if (!oldData || oldData.length === 0) {
-            return res.status(404).json({ error: "রিস্টোরেন্ট খুঁজে পাওয়া যায়নি!" });
-        }
+        // SQL query তে bg_image এবং logo আপডেট করুন
+        let sql = "UPDATE restaurants SET restaurant_name=?, location=?, contact_mobile=?, slug=?";
+        let params = [restaurant_name, location, contact_mobile, slug];
 
-        let logoFileName = oldData[0].logo;
-        let bgImageName = oldData[0].bg_image; 
+        if (logoFile) { sql += ", logo=?"; params.push(logoFile); }
+        if (coverFile) { sql += ", bg_image=?"; params.push(coverFile); }
 
-        // ২. লোগো আপডেট লজিক
-        if (files && files.logo) {
-            if (logoFileName) {
-                const oldPath = path.join(uploadDir, logoFileName);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            }
-            logoFileName = files.logo[0].filename;
-        }
+        sql += " WHERE id=?";
+        params.push(id);
 
-        // ৩. ব্যাকগ্রাউন্ড ইমেজ আপডেট লজিক (কলাম: bg_image, ইনপুট কি: cover)
-        if (files && files.cover) {
-            if (bgImageName) {
-                const oldPath = path.join(uploadDir, bgImageName);
-                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
-            }
-            bgImageName = files.cover[0].filename;
-        }
-
-        // ৪. ডাটাবেস আপডেট কুয়েরি
-        const sql = `
-            UPDATE restaurants 
-            SET restaurant_name = ?, location = ?, contact_mobile = ?, slug = ?, logo = ?, bg_image = ?
-            WHERE id = ?
-        `;
-        
-        const [result] = await db.query(sql, [
-            restaurant_name, 
-            location, 
-            contact_mobile, 
-            slug, 
-            logoFileName, 
-            bgImageName, 
-            resId
-        ]);
-
-        res.json({ success: true, message: "সব কিছু ঠিকঠাক আপডেট হয়েছে!" });
-
+        await db.query(sql, params);
+        res.json({ success: true, message: "Updated successfully" });
     } catch (error) {
-        console.error("Update Error:", error);
-        res.status(500).json({ error: "সার্ভার এরর: ডাটা সেভ হচ্ছে না।" });
+        console.error(error);
+        res.status(500).json({ error: "Database update failed" });
+    }
+});
+
+app.get('/setup-offer-data/:restaurant_id', async (req, res) => {
+    const { restaurant_id } = req.params;
+    try {
+        const [products] = await db.query(
+            "SELECT id, name, price FROM products WHERE restaurant_id = ?", 
+            [restaurant_id]
+        );
+        const [areas] = await db.query(
+            "SELECT id, areaName FROM delivery_areas WHERE restaurant_id = ?", 
+            [restaurant_id]
+        );
+        res.json({ products, areas });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ২. অফার লঞ্চ করা এবং প্রোডাক্ট টেবিলের দাম আপডেট করা
+app.post('/launch-offer', upload.single('offerImage'), async (req, res) => {
+    const { 
+        offerTitle, productId, itemName, originalPrice, 
+        offerPrice, endDate, selectedAreas, quantityType, totalQuantity 
+    } = req.body;
+    
+    const offerImage = req.file ? req.file.filename : null;
+    const startDate = new Date().toISOString().split('T')[0]; // আজকের তারিখ
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // ক. অফার টেবিলে ডাটা ইনসার্ট
+        await connection.query(
+            `INSERT INTO offers (offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+            [offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage]
+        );
+
+        // খ. প্রোডাক্ট টেবিলে সরাসরি অফার প্রাইস আপডেট (Sync)
+        await connection.query(
+            "UPDATE products SET offer_price = ? WHERE id = ?",
+            [offerPrice, productId]
+        );
+
+        await connection.commit();
+        res.json({ success: true, message: "Offer launched and product updated!" });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        connection.release();
     }
 });
 
