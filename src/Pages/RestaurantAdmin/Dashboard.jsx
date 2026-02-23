@@ -14,7 +14,7 @@ import {
 const RestaurantDashboard = () => {
   const [isStoreOpen, setIsStoreOpen] = useOutletContext();
   const navigate = useNavigate();
-  const resId = localStorage.getItem('resId'); // লগইন এর সময় এটি সেট করে নিবেন
+  const resId = localStorage.getItem('resId'); 
 
   const [dashboardData, setDashboardData] = useState({
     name: "",
@@ -26,7 +26,7 @@ const RestaurantDashboard = () => {
     incomingOrders: []
   });
 
-  // ১. ডাটা ফেচিং
+  // Data fetch
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -40,7 +40,7 @@ const RestaurantDashboard = () => {
     if (resId) fetchDashboardData();
   }, [resId, setIsStoreOpen]);
 
-  // ২. স্ট্যাটাস টগল (Real Sync with DB)
+  // Status Toggle
   const handleStatusToggle = async () => {
     const newStatus = isStoreOpen ? 'inactive' : 'active';
     try {

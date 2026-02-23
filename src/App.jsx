@@ -42,9 +42,8 @@ const ChatList = lazy(() => import("./Pages/Admin/ChatList.jsx"));
 const Review = lazy(() => import("./Pages/Admin/Review.jsx"));
 const Registration = lazy(() => import("./Pages/Admin/Registration.jsx"));
 
-//Restaurant Admin main Pages
+// Restaurant Admin Pages
 const ResDashboard = lazy(() => import("./Pages/RestaurantAdmin/Dashboard.jsx"));
-//const ResDeliveryCharge = lazy(() => import("./Pages/RestaurantAdmin/AddDeliveryCharge.jsx"));
 const ResManageShop = lazy(() => import("./Pages/RestaurantAdmin/ManageShop.jsx"));
 const ResDeliveryArea = lazy(() => import("./Pages/RestaurantAdmin/DeliveryArea.jsx"));
 const ResCategory = lazy(() => import("./Pages/RestaurantAdmin/MenuCategory.jsx"));
@@ -56,7 +55,7 @@ const ResReports = lazy(() => import("./Pages/RestaurantAdmin/SalesReport.jsx"))
 const ResOffers = lazy(() => import("./Pages/RestaurantAdmin/Addoffer.jsx"));
 const ResRegistration = lazy(() => import("./Pages/RestaurantAdmin/Registration.jsx"));
 
-//Restaurant Admin dropdown pages
+// Restaurant Admin Dropdown Pages
 const GraphReport = lazy(() => import("./Pages/RestaurantAdmin/GraphReport.jsx"));
 const TableReport = lazy(() => import("./Pages/RestaurantAdmin/TableReport.jsx"));
 const CreateOrder = lazy(() => import("./Pages/RestaurantAdmin/CreateOrder.jsx"));
@@ -70,6 +69,16 @@ const RestaurantLoginPage = lazy(() => import("./Pages/RestrurantLogin/LoginPage
 const SuperAdminLoginPage = lazy(() => import("./Pages/SuperAdminLogin/LoginPage.jsx"));
 const AdminAreaPage = lazy(() => import("./Components/Arealist/AreaPage.jsx")); 
 
+// --- Protected Route Logic ---
+const ProtectedRoute = ({ children }) => {
+  const resId = localStorage.getItem('resId');
+  if (!resId) {
+    // যদি লগইন না থাকে, তবে লগইন পেজে পাঠিয়ে দেবে
+    return <Navigate to="/restaurant-login" replace />;
+  }
+  return children;
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: { staleTime: 1000 * 60 * 5, refetchOnWindowFocus: false },
@@ -78,7 +87,6 @@ const queryClient = new QueryClient({
 
 const AppContent = () => {
   const location = useLocation();
-  const { cart } = useCart(); 
 
   useEffect(() => {
     const rawData = sessionStorage.getItem('global_cart_data');
@@ -123,8 +131,8 @@ const AppContent = () => {
                 <Route path="/templates" element={<PageWrapper><TemplatePage /></PageWrapper>} />
               </Route>
 
-              {/* --- 3. Admin Routes --- */}
-              <Route path="/admin" element={<AdminLayout />}>
+              {/* --- 3. Super Admin Routes (Protected) --- */}
+              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
                 <Route index element={<PageWrapper><Dashboard /></PageWrapper>} />
                 <Route path="area" element={<PageWrapper><AddArea /></PageWrapper>} />
                 <Route path="area/:areaName" element={<PageWrapper><AdminAreaPage /></PageWrapper>} />
@@ -137,10 +145,16 @@ const AppContent = () => {
                 <Route path="registration" element={<PageWrapper><Registration /></PageWrapper>} />
               </Route>
 
-              {/* --- 4. Restaurant Owner Routes --- */}
-              <Route path="/restaurantadmin" element={<RestaurantLayout />} >
+              {/* --- 4. Restaurant Owner Routes (Protected) --- */}
+              <Route 
+                path="/restaurantadmin" 
+                element={
+                  <ProtectedRoute>
+                    <RestaurantLayout />
+                  </ProtectedRoute>
+                } 
+              >
                 <Route index element={<PageWrapper><ResDashboard /></PageWrapper>} />
-                {/*<Route path="delivery-charge" element={<PageWrapper><ResDeliveryCharge /></PageWrapper>} />*/}
                 <Route path="manage-shop" element={<PageWrapper><ResManageShop /></PageWrapper>} />
                 <Route path="delivery-area" element={<PageWrapper><ResDeliveryArea /></PageWrapper>} />
                 <Route path="category" element={<PageWrapper><ResCategory /></PageWrapper>} />
@@ -152,14 +166,13 @@ const AppContent = () => {
                 <Route path="offers" element={<PageWrapper><ResOffers /></PageWrapper>} />
                 <Route path="registration" element={<PageWrapper><ResRegistration /></PageWrapper>} />
                 
-                {/*Restaurant Admin dropdown pages*/}
+                {/* Dropdown pages */}
                 <Route path="graph-report" element={<PageWrapper><GraphReport /></PageWrapper>} />
                 <Route path="table-report" element={<PageWrapper><TableReport /></PageWrapper>} />
                 <Route path="create-Order-List" element={<PageWrapper><CreateOrder /></PageWrapper>} />
                 <Route path="orderslists" element={<PageWrapper><OrderList /></PageWrapper>} />
                 <Route path="add-menus" element={<PageWrapper><AddMenu /></PageWrapper>} />
                 <Route path="menu-list" element={<PageWrapper><MenuList /></PageWrapper>} />
-
               </Route>
 
               {/* --- 5. 404 Route --- */}

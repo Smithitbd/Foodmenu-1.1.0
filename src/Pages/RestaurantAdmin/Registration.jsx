@@ -1,36 +1,56 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios'; // Axios ইমপোর্ট করুন
 import { UserPlus, Mail, Lock, ShieldCheck, Edit, Trash2, User, ChevronDown, Check, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const RegistrationPage = () => {
-  const [users, setUsers] = useState([
-    { id: 1, name: "sourov", email: "sourov@gmail.com", password: "12345", role: "Admin" },
-    { id: 2, name: "sajib.chy", email: "sajib.chy15@yahoo.com", password: "123456789", role: "Admin" },
-  ]);
-
+  const [users, setUsers] = useState([]);
   const [formData, setFormData] = useState({ name: '', email: '', password: '', role: 'Select Role' });
-  const [editingId, setEditingId] = useState(null); 
+  const [editingId, setEditingId] = useState(null);
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ formData, [name]: value });
+  // ১. পেজ লোড হলে ইউজার লিস্ট নিয়ে আসা
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await axios.get('http://localhost:5000/api/users');
+      setUsers(res.data);
+    } catch (err) {
+      console.error("Error fetching users", err);
+    }
   };
 
-  const handleSave = (e) => {
+  // ২. ইনপুট হ্যান্ডলার (ফিক্সড লজিক)
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+  };
+
+  // ৩. সেভ বা আপডেট হ্যান্ডলার
+  const handleSave = async (e) => {
     e.preventDefault();
     if (formData.name && formData.email && formData.password && formData.role !== 'Select Role') {
-      if (editingId) {
-        // Data update when edit mode selected
-        setUsers(users.map(user => user.id === editingId ? { formData, id: editingId } : user));
+      try {
+        if (editingId) {
+          // Update API Call
+          await axios.put(`http://localhost:5000/api/users/${editingId}`, formData);
+          Swal.fire({ icon: 'success', title: 'Updated!', timer: 1000, showConfirmButton: false });
+        } else {
+          // Create API Call
+          await axios.post('http://localhost:5000/api/users', formData);
+          Swal.fire({ icon: 'success', title: 'User Created!', timer: 1000, showConfirmButton: false });
+        }
+        
         setEditingId(null);
-      } else {
-        // add new user
-        const newUser = { id: Date.now(), formData };
-        setUsers([users, newUser]);
+        setFormData({ name: '', email: '', password: '', role: 'Select Role' });
+        fetchUsers(); // লিস্ট রিফ্রেশ করা
+      } catch (err) {
+        Swal.fire('Error', 'Something went wrong!', 'error');
       }
-      setFormData({ name: '', email: '', password: '', role: 'Select Role' });
     } else {
-      alert("Please fill all the fields correctly!");
+      Swal.fire('Warning', 'Please fill all fields!', 'warning');
     }
   };
 
@@ -44,36 +64,28 @@ const RegistrationPage = () => {
     setFormData({ name: '', email: '', password: '', role: 'Select Role' });
   };
 
+  // ৪. ডিলিট হ্যান্ডলার
   const deleteUser = (id) => {
-  Swal.fire({
-    title: "Are you sure?",
-    text: "You won't be able to revert this!",
-    icon: "warning",
-    showCancelButton: true,
-    confirmButtonColor: "#1e293b", 
-    cancelButtonColor: "#f34336", 
-    confirmButtonText: "Yes, delete it!",
-    customClass: {
-      popup: 'rounded-[2rem]', 
-      confirmButton: 'rounded-xl px-6 py-3',
-      cancelButton: 'rounded-xl px-6 py-3'
-    }
-  }).then((result) => {
-    if (result.isConfirmed) {
-      setUsers(users.filter(user => user.id !== id));
-      Swal.fire({
-        title: "Deleted!",
-        text: "User has been removed.",
-        icon: "success",
-        timer: 1500,
-        showConfirmButton: false,
-        customClass: {
-        popup: 'rounded-[2rem]'
+    Swal.fire({
+      title: "Are you sure?",
+      text: "You won't be able to revert this!",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#1e293b",
+      cancelButtonColor: "#f34336",
+      confirmButtonText: "Yes, delete it!"
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          await axios.delete(`http://localhost:5000/api/users/${id}`);
+          fetchUsers(); 
+          Swal.fire("Deleted!", "User removed.", "success");
+        } catch (err) {
+          Swal.fire("Error", "Could not delete user", "error");
         }
-      });
-    }
-  });
-};
+      }
+    });
+  };
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] pt-2 pb-10 px-4 sm:px-6 lg:px-10 font-sans">
@@ -125,9 +137,9 @@ const RegistrationPage = () => {
                 <div className="relative group">
                   <select name="role" value={formData.role} onChange={handleInputChange} className="w-full pl-11 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-red-500 focus:bg-white transition-all text-sm font-semibold text-slate-700 shadow-sm appearance-none cursor-pointer" required >
                     <option disabled value="Select Role">Select Role</option>
-                    <option value="Admin">Admin</option>
+                    <option value="Owner">Owner</option>
                     <option value="Manager">Manager</option>
-                    <option value="Editor">Editor</option>
+                    <option value="Chief-Waiter">Chief-Waiter</option>
                   </select>
                   <ShieldCheck className="absolute left-4 top-3 text-slate-400 group-focus-within:text-red-500" size={18} />
                   <ChevronDown className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={16} />

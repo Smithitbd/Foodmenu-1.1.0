@@ -7,6 +7,7 @@ import multer from 'multer';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import sharp from 'sharp';
 
 const app = express();
 const saltRounds = 10;
@@ -158,11 +159,32 @@ app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
 app.get('/api/menu-list', async (req, res) => {
     try {
         const { restaurant_id } = req.query;
-        const sql = `SELECT p.*, GROUP_CONCAT(pi.image_path) as all_images FROM products p LEFT JOIN product_images pi ON p.id = pi.product_id WHERE p.restaurant_id = ? GROUP BY p.id ORDER BY p.id DESC`;
+        const sql = `SELECT 
+                p.*, 
+                GROUP_CONCAT(pi.image_path) as all_images,
+                o.offerTitle,
+                o.offerPrice as promo_price,
+                o.endDate as offer_end,
+                o.status as offer_status,
+                
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', 1, 0) AS has_offer,
+                
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerTitle, p.name) AS display_name,
+                
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS display_price
+            FROM products p 
+            LEFT JOIN product_images pi ON p.id = pi.product_id 
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE p.restaurant_id = ? 
+            GROUP BY p.id 
+            ORDER BY p.id DESC`;
+
         const [results] = await db.query(sql, [restaurant_id]);
         const updatedResults = results.map(item => ({
             ...item,
-            images: item.all_images ? item.all_images.split(',') : []
+            images: item.all_images ? item.all_images.split(',') : [],
+            final_name: item.display_name,
+            final_price: item.display_price
         }));
         res.json(updatedResults);
     } catch (err) {
@@ -343,14 +365,26 @@ app.delete('/api/delivery-areas/:id', async (req, res) => {
 });
 
 // --- DASHBOARD STATS ---
-app.get('/api/restaurant-stats/:resId', async (req, res) => {
+app.get('/api/dashboard-stats/:resId', async (req, res) => { // নাম পরিবর্তন করে ফ্রন্টএন্ডের সাথে মিলানো হলো
     try {
         const { resId } = req.params;
         const [resInfo] = await db.query("SELECT restaurant_name, status FROM restaurants WHERE id = ?", [resId]);
         const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
         const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
         const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        const [weeklySales] = await db.query(`SELECT DAYNAME(created_at) as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DAYNAME(created_at)`, [resId]);
+        
+        // Weekly Sales Query: গত ৭ দিনের ডেটা আনা হচ্ছে
+        const [weeklySalesRows] = await db.query(`
+            SELECT 
+                DATE_FORMAT(created_at, '%a') as day, 
+                SUM(total_amount) as total 
+            FROM orders 
+            WHERE restaurant_id = ? 
+            AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
+            GROUP BY DATE(created_at), day
+            ORDER BY DATE(created_at) ASC
+        `, [resId]);
+
         const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
 
         res.json({
@@ -360,7 +394,7 @@ app.get('/api/restaurant-stats/:resId', async (req, res) => {
             activeOrders: orders[0]?.active || 0,
             todayEarning: earnings[0]?.todayTotal || 0,
             avgRating: 4.8,
-            weeklySales: weeklySales.length > 0 ? weeklySales : [],
+            weeklySales: weeklySalesRows, // এখানে এখন [{day: 'Mon', total: 500}, ...] ফরম্যাটে ডেটা যাবে
             incomingOrders: latestOrders
         });
     } catch (err) {
@@ -371,9 +405,20 @@ app.get('/api/restaurant-stats/:resId', async (req, res) => {
 
 app.get('/api/inventory/:resId', async (req, res) => {
     try {
-        const [results] = await db.query("SELECT id, name, price FROM products WHERE restaurant_id = ? AND is_available = 1", [req.params.resId]);
+        const sql = `
+            SELECT 
+                p.id, 
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerTitle, p.name) AS name,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS price
+            FROM products p
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE p.restaurant_id = ? AND p.is_available = 1`;
+            
+        const [results] = await db.query(sql, [req.params.resId]);
         res.json(results);
-    } catch (err) { res.status(500).json({ error: err.message }); }
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // --- Manage Shop ---
@@ -539,7 +584,7 @@ app.put('/api/restaurant/update-all/:id', upload.fields([
     }
 });
 
-app.get('/setup-offer-data/:restaurant_id', async (req, res) => {
+app.get('/api/setup-offer-data/:restaurant_id', async (req, res) => {
     const { restaurant_id } = req.params;
     try {
         const [products] = await db.query(
@@ -557,27 +602,26 @@ app.get('/setup-offer-data/:restaurant_id', async (req, res) => {
 });
 
 // ২. অফার লঞ্চ করা এবং প্রোডাক্ট টেবিলের দাম আপডেট করা
-app.post('/launch-offer', upload.single('offerImage'), async (req, res) => {
+app.post('/api/launch-offer', upload.single('offerImage'), async (req, res) => {
     const { 
         offerTitle, productId, itemName, originalPrice, 
         offerPrice, endDate, selectedAreas, quantityType, totalQuantity 
     } = req.body;
     
     const offerImage = req.file ? req.file.filename : null;
-    const startDate = new Date().toISOString().split('T')[0]; // আজকের তারিখ
+    const startDate = new Date().toISOString().split('T')[0]; 
 
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
 
-        // ক. অফার টেবিলে ডাটা ইনসার্ট
         await connection.query(
-            `INSERT INTO offers (offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-            [offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage]
+            `INSERT INTO offers (productId, offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, status) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
+            [productId, offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage]
         );
 
-        // খ. প্রোডাক্ট টেবিলে সরাসরি অফার প্রাইস আপডেট (Sync)
+        
         await connection.query(
             "UPDATE products SET offer_price = ? WHERE id = ?",
             [offerPrice, productId]
@@ -590,6 +634,52 @@ app.post('/launch-offer', upload.single('offerImage'), async (req, res) => {
         res.status(500).json({ error: err.message });
     } finally {
         connection.release();
+    }
+});
+
+//Restaurant Registration API
+// ১. সব ইউজার গেট করার এপিআই
+app.get('/api/users', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT id, name, email, password, role FROM users ORDER BY id DESC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ২. নতুন ইউজার সেভ করার এপিআই
+app.post('/api/users', async (req, res) => {
+    const { name, email, password, role } = req.body;
+    try {
+        const sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
+        const [result] = await db.query(sql, [name, email, password, role]);
+        res.status(201).json({ message: "User created", userId: result.insertId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ৩. ইউজার আপডেট করার এপিআই
+app.put('/api/users/:id', async (req, res) => {
+    const { name, email, password, role } = req.body;
+    const { id } = req.params;
+    try {
+        const sql = "UPDATE users SET name=?, email=?, password=?, role=? WHERE id=?";
+        await db.query(sql, [name, email, password, role, id]);
+        res.json({ message: "User updated" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ৪. ইউজার ডিলিট করার এপিআই
+app.delete('/api/users/:id', async (req, res) => {
+    try {
+        await db.query("DELETE FROM users WHERE id = ?", [req.params.id]);
+        res.json({ message: "User deleted" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

@@ -15,7 +15,7 @@ const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(true);
-  const [newOrders, setNewOrders] = useState(3);
+  const [newOrders, setNewOrders] = useState(0);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isOrderOpen, setIsOrderOpen] = useState(false);
@@ -57,6 +57,33 @@ useEffect(() => {
     logo: resLogo
   };
 
+  const checkNewOrders = async () => {
+    const resId = localStorage.getItem('resId');
+    if (!resId) return;
+    try {
+      
+      const res = await axios.get(`http://localhost:5000/api/orders/${resId}`);
+      
+      
+      const pendingOrders = res.data.filter(order => order.order_status === 'pending');
+      
+      
+      setNewOrders(pendingOrders.length);
+    } catch (error) {
+      console.error("Notification Fetch Error:", error);
+    }
+  };
+
+  useEffect(() => {
+    
+    checkNewOrders();
+
+    
+    const interval = setInterval(checkNewOrders, 30000); 
+
+    return () => clearInterval(interval); // মেমোরি লিক বন্ধ করতে
+  }, []);
+
   const handleLogout = () => {
     setIsProfileOpen(false); 
     Swal.fire({
@@ -69,6 +96,9 @@ useEffect(() => {
       borderRadius: '20px'
     }).then((result) => {
       if (result.isConfirmed) {
+        localStorage.removeItem('resId');   
+        localStorage.removeItem('resName'); 
+        localStorage.removeItem('resLogo'); 
         navigate('/login');
       }
     });
