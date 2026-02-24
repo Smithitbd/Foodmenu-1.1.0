@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import { 
   LayoutDashboard, Store, MapPin, PlusCircle, Utensils, 
   ShoppingCart, CheckCircle, BarChart3, Gift, UserCircle, 
-  Menu, X, ChevronDown, Bell, Settings, LogOut, 
+  Menu, X, ChevronDown, Settings, LogOut, 
   Edit, List, Plus, FileText, PieChart
 } from 'lucide-react';
 import logoImg from '../../assets/foodmenu.png'; 
@@ -15,7 +15,6 @@ const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isStoreOpen, setIsStoreOpen] = useState(true);
-  const [newOrders, setNewOrders] = useState(0);
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isOrderOpen, setIsOrderOpen] = useState(false);
@@ -27,62 +26,32 @@ const DashboardLayout = () => {
   const [resName, setResName] = useState(localStorage.getItem('resName'));
   const [resLogo, setResLogo] = useState(localStorage.getItem('resLogo'));
 
-
-useEffect(() => {
-  const syncDashboard = async () => {
-    const resId = localStorage.getItem('resId');
-    if (!resId) return;
-    try {
-      const res = await axios.get(`http://localhost:5000/api/restaurant/${resId}`);
-      
-      // সঠিক ডেটা সেট করা
-      setIsStoreOpen(res.data.status === 'active');
-      setResName(res.data.restaurant_name);
-      
-      // ইমেজ পাথ তৈরি করা (আপনার আপলোড ফোল্ডার অনুযায়ী)
-      const formattedLogo = `http://localhost:5000/uploads/${res.data.logo}`;
-      setResLogo(formattedLogo);
-      
-      localStorage.setItem('resName', res.data.restaurant_name);
-      localStorage.setItem('resLogo', formattedLogo); // এখানে logoUrl এর বদলে formattedLogo হবে
-    } catch (error) {
-      console.error("Layout Sync Error:", error);
-    }
-  };
-  syncDashboard();
-}, []);
+  useEffect(() => {
+    const syncDashboard = async () => {
+      const resId = localStorage.getItem('resId');
+      if (!resId) return;
+      try {
+        const res = await axios.get(`http://localhost:5000/api/restaurant/${resId}`);
+        
+        setIsStoreOpen(res.data.status === 'active');
+        setResName(res.data.restaurant_name);
+        
+        const formattedLogo = `http://localhost:5000/uploads/${res.data.logo}`;
+        setResLogo(formattedLogo);
+        
+        localStorage.setItem('resName', res.data.restaurant_name);
+        localStorage.setItem('resLogo', formattedLogo);
+      } catch (error) {
+        console.error("Layout Sync Error:", error);
+      }
+    };
+    syncDashboard();
+  }, []);
 
   const restaurantInfo = {
     name: resName,
     logo: resLogo
   };
-
-  const checkNewOrders = async () => {
-    const resId = localStorage.getItem('resId');
-    if (!resId) return;
-    try {
-      
-      const res = await axios.get(`http://localhost:5000/api/orders/${resId}`);
-      
-      
-      const pendingOrders = res.data.filter(order => order.order_status === 'pending');
-      
-      
-      setNewOrders(pendingOrders.length);
-    } catch (error) {
-      console.error("Notification Fetch Error:", error);
-    }
-  };
-
-  useEffect(() => {
-    
-    checkNewOrders();
-
-    
-    const interval = setInterval(checkNewOrders, 30000); 
-
-    return () => clearInterval(interval); // মেমোরি লিক বন্ধ করতে
-  }, []);
 
   const handleLogout = () => {
     setIsProfileOpen(false); 
@@ -291,14 +260,6 @@ useEffect(() => {
           </button>
 
           <div className="flex items-center gap-6">
-            <button 
-              onClick={() => { setNewOrders(0); navigate('/restaurantadmin/orderslists'); }} 
-              className="relative p-2.5 bg-gray-50 text-gray-400 hover:text-red-600 rounded-xl transition-all"
-            >
-              <Bell size={24} className={newOrders > 0 ? "animate-bounce text-red-600" : ""} />
-              {newOrders > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">{newOrders}</span>}
-            </button>
-
             {/* Profile Dropdown */}
             <div className="relative">
               <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer group p-1 hover:bg-gray-50 rounded-2xl transition-all">
