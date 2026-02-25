@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { React, useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../../src/context/CartContext'; 
 import { 
   FaShoppingCart, FaPlus, FaPhoneAlt, FaSearch, 
-  FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown 
+  FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown, FaUtensils 
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
 import Swal from 'sweetalert2';
@@ -29,6 +29,7 @@ const RestaurantPage = () => {
 
   const sidebarRef = useRef(null);
 
+  // Intersection Observer to highlight categories on scroll
   useEffect(() => {
     if (isUserFiltering || searchTerm !== '') return;
     const observerOptions = { root: null, rootMargin: '-20% 0px -60% 0px', threshold: 0 };
@@ -64,16 +65,12 @@ const RestaurantPage = () => {
     }
   };
 
-  // ✅ FIXED handleAddToCart
   const handleAddToCart = async (product, id) => {
     try {
       const result = await addToCart(product, restaurantSlug);
-      
-      // শুধুমাত্র 'success' হলেই পরবর্তী কাজগুলো হবে
       if (result && result.status === 'success') {
         setTickedId(id);
         setIsCartBouncing(true);
-
         const Toast = Swal.mixin({
           toast: true,
           position: 'bottom-center',
@@ -81,7 +78,6 @@ const RestaurantPage = () => {
           timer: 1500,
           timerProgressBar: true,
         });
-
         Toast.fire({
           icon: 'success',
           title: `${product.name} added!`,
@@ -89,7 +85,6 @@ const RestaurantPage = () => {
           color: '#fff',
           iconColor: '#22c55e',
         });
-
         setTimeout(() => { 
           setTickedId(null); 
           setIsCartBouncing(false); 
@@ -123,19 +118,17 @@ const RestaurantPage = () => {
       { id: 19, category: 'Chinese', img: 'https://images.pexels.com/photos/1907228/pexels-photo-1907228.jpeg', name: 'Manchurian Chicken', price: 350, desc: "Spicy & sour gravy chicken." },
       { id: 20, category: 'Chinese', img: 'https://images.pexels.com/photos/1241913/pexels-photo-1241913.jpeg', name: 'Egg Fried Rice', price: 200, desc: "Classic wok-tossed fried rice." }
     ];
-
     if (searchTerm) return prods.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (isUserFiltering) return prods.filter(p => p.category === activeCategory);
     return prods;
   }, [searchTerm, activeCategory, isUserFiltering]);
 
-  // ✅ Reliable Item Count
   const cartTotalItems = useMemo(() => {
     return Array.isArray(cart) ? cart.reduce((total, item) => total + (item.quantity || 0), 0) : 0;
   }, [cart]);
 
   return (
-    <div className="bg-[#fcfcfc] min-h-screen pb-32 font-inter overflow-x-hidden">
+    <div className="bg-[#fcfcfc] min-h-screen pb-32 font-inter">
       <style>{`
         .glass-morphism { background: rgba(255, 255, 255, 0.1); backdrop-filter: blur(15px); border: 1px solid rgba(255, 255, 255, 0.2); }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
@@ -143,6 +136,9 @@ const RestaurantPage = () => {
         @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
         .cart-bounce { animation: cartBounce 0.5s ease; }
         @keyframes cartBounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        
+        body::-webkit-scrollbar { display: none; }
+        body { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
       {/* Hero Section */}
@@ -166,36 +162,52 @@ const RestaurantPage = () => {
       </div>
 
       <div className="max-w-[1440px] mx-auto px-4 md:px-10 -mt-10 md:-mt-14 relative z-30">
-        {/* Search Bar Area */}
+        {/* Search Bar */}
         <div className="bg-white shadow-2xl rounded-[35px] md:rounded-[55px] p-3 md:p-4 flex flex-col xl:flex-row gap-4 border border-white">
           <div className="flex-1 flex items-center px-6 md:px-10 h-16 md:h-20 bg-slate-50 rounded-[30px] md:rounded-[45px]">
             <FaSearch className="text-slate-300 mr-4 md:mr-6" size={20} />
             <input type="text" placeholder="Search..." className="w-full bg-transparent outline-none font-bold text-lg md:text-xl text-slate-800" onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <div className="flex gap-3 h-16 md:h-20">
-             <button className="flex-1 xl:w-48 bg-[#fff5f2] text-[#ff4d00] rounded-[30px] md:rounded-[45px] font-black text-xs md:text-sm flex items-center justify-center gap-2"><FaCommentDots size={18}/> <span>MESSAGE</span></button>
-             <a href="tel:+88" className="flex-1 xl:w-48 bg-gradient-to-r from-[#be1e2d] to-[#ff4d00] text-white rounded-[30px] md:rounded-[45px] font-black text-xs md:text-sm flex items-center justify-center gap-2"><FaPhoneAlt size={16}/> <span>CALL NOW</span></a>
+            <button className="flex-1 xl:w-48 bg-[#fff5f2] text-[#ff4d00] rounded-[30px] md:rounded-[45px] font-black text-xs md:text-sm flex items-center justify-center gap-2"><FaCommentDots size={18}/> <span>MESSAGE</span></button>
+            <a href="tel:+88" className="flex-1 xl:w-48 bg-gradient-to-r from-[#be1e2d] to-[#ff4d00] text-white rounded-[30px] md:rounded-[45px] font-black text-xs md:text-sm flex items-center justify-center gap-2"><FaPhoneAlt size={16}/> <span>CALL NOW</span></a>
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-8 md:gap-14 mt-12 md:mt-24 items-start">
-          {/* Sidebar */}
-          <div className="w-full lg:w-[300px] lg:sticky lg:top-28 z-40">
-            <div className="bg-white p-5 md:p-7 rounded-[40px] border border-slate-100 shadow-xl">
+        {/* --- MAIN CONTENT FLEX BOX --- */}
+        <div className="flex flex-col lg:flex-row gap-8 md:gap-14 mt-12 md:mt-24 items-start relative min-h-[1000px]">
+          
+          {/* --- STICKY SIDEBAR --- */}
+          <div className="w-full lg:w-95 lg:sticky lg:top-28 z-40 h-fit">
+            <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-white p-8">
+              
+              <div className="hidden lg:flex items-center gap-3 mb-8">
+                <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
+                  <FaUtensils size={20} />
+                </div>
+                <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">Categories</h3>
+              </div>
+
               <div ref={sidebarRef} className="flex lg:flex-col gap-2 md:gap-3 overflow-x-auto hide-scrollbar pb-2 lg:pb-0">
                 {['All', 'Food Offer', 'Main Course', 'Fast Food', 'Seafood', 'Indian', 'Chinese'].map((cat) => (
-                  <button key={cat} id={`btn-${cat}`} onClick={() => handleCategoryClick(cat)}
-                    className={`flex-shrink-0 px-6 py-4 rounded-[22px] font-black text-[10px] md:text-[11px] uppercase transition-all duration-300 flex items-center justify-between min-w-fit lg:min-w-0
-                    ${activeCategory === cat ? 'bg-slate-900 text-white shadow-2xl scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                  <button 
+                    key={cat} 
+                    id={`btn-${cat}`} 
+                    onClick={() => handleCategoryClick(cat)}
+                    className={`flex-shrink-0 px-6 py-4 rounded-2xl font-black text-[11px] uppercase transition-all duration-300 flex items-center justify-between min-w-fit lg:min-w-0
+                    ${activeCategory === cat 
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-200 scale-105' 
+                      : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                  >
                     <span>{cat}</span>
-                    {activeCategory === cat && <div className="hidden lg:block w-2.5 h-2.5 rounded-full bg-[#ff4d00]" />}
+                    {activeCategory === cat && <div className="hidden lg:block w-2 h-2 rounded-full bg-white" />}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Product Grid */}
+          {/* --- PRODUCT GRID --- */}
           <div className="flex-1 w-full">
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-10">
               {filteredProducts.slice(0, isUserFiltering ? 99 : visibleCount).map((product) => (
@@ -204,7 +216,6 @@ const RestaurantPage = () => {
                   onClick={() => setSelectedProduct(product)}>
                   <div className="aspect-square relative overflow-hidden rounded-[35px]">
                     <img src={product.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
-                    
                     <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product, product.id); }}
                       className={`absolute top-4 right-4 w-14 h-14 rounded-[22px] flex items-center justify-center shadow-xl z-10 transition-all
                       ${tickedId === product.id ? 'green-pop' : 'bg-white/90 backdrop-blur-md text-[#be1e2d] hover:bg-[#be1e2d] hover:text-white'}`}>
@@ -222,17 +233,17 @@ const RestaurantPage = () => {
                 </div>
               ))}
             </div>
+            
             {!isUserFiltering && !searchTerm && visibleCount < filteredProducts.length && (
               <div className="mt-16 flex justify-center">
-                <button onClick={() => setVisibleCount(prev => prev + 6)} className="flex items-center gap-3 bg-white border-2 border-slate-200 px-10 py-5 rounded-full font-black text-slate-900 shadow-xl">EXPLORE MORE <FaArrowDown /></button>
+                <button onClick={() => setVisibleCount(prev => prev + 6)} className="flex items-center gap-3 bg-white border-2 border-slate-200 px-10 py-5 rounded-full font-black text-slate-900 shadow-xl shadow-slate-200/50">EXPLORE MORE <FaArrowDown /></button>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* ✅ PERSISTENT Floating Cart UI */}
-      {/* z-index অনেক বাড়ানো হয়েছে এবং লজিক চেক করা হয়েছে */}
+      {/* Floating Cart */}
       <div className={`fixed bottom-8 right-8 z-[9999] transition-all duration-500 ${cartTotalItems > 0 ? 'scale-100 opacity-100 translate-y-0' : 'scale-0 opacity-0 translate-y-20'}`}>
         <Link to={`/cart/${restaurantSlug}/ConfirmCart`} 
           className={`w-20 h-20 md:w-32 md:h-32 rounded-[30px] md:rounded-[45px] flex items-center justify-center shadow-[0_20px_50px_rgba(190,30,45,0.3)] border-8 border-white bg-[#be1e2d] transition-all duration-300
@@ -246,18 +257,18 @@ const RestaurantPage = () => {
         </Link>
       </div>
 
-      {/* Modal */}
+      {/* Modal Detail */}
       {selectedProduct && (
         <div className="fixed inset-0 z-[6000] flex items-end md:items-center justify-center p-0 md:p-6 bg-slate-950/90 backdrop-blur-sm">
-          <div className="bg-white rounded-t-[40px] md:rounded-[60px] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setSelectedProduct(null)} className="absolute top-5 right-5 z-50 bg-slate-100 p-4 rounded-full"><FaTimes/></button>
+          <div className="bg-white rounded-t-[40px] md:rounded-[60px] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative max-h-[90vh] overflow-y-auto hide-scrollbar">
+            <button onClick={() => setSelectedProduct(null)} className="absolute top-5 right-5 z-50 bg-slate-100 p-4 rounded-full hover:bg-rose-500 hover:text-white transition-all"><FaTimes/></button>
             <div className="w-full md:w-1/2 h-72 md:h-auto"><img src={selectedProduct.img} className="w-full h-full object-cover" alt="" /></div>
             <div className="p-8 md:p-16 flex-1 flex flex-col justify-center">
               <span className="text-[#ff4d00] font-black text-xs uppercase mb-3">{selectedProduct.category}</span>
               <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic mb-6">{selectedProduct.name}</h2>
-              <p className="text-slate-500 mb-10">{selectedProduct.desc}</p>
-              <span className="text-4xl md:text-5xl font-black italic mb-10">৳{selectedProduct.price}</span>
-              <button onClick={() => { handleAddToCart(selectedProduct, selectedProduct.id); setSelectedProduct(null); }} className="w-full bg-[#be1e2d] text-white py-6 rounded-[25px] font-black text-xl shadow-2xl">Add To Basket</button>
+              <p className="text-slate-500 mb-10 leading-relaxed">{selectedProduct.desc}</p>
+              <span className="text-4xl md:text-5xl font-black italic mb-10 text-slate-900">৳{selectedProduct.price}</span>
+              <button onClick={() => { handleAddToCart(selectedProduct, selectedProduct.id); setSelectedProduct(null); }} className="w-full bg-[#be1e2d] text-white py-6 rounded-[25px] font-black text-xl shadow-2xl active:scale-95 transition-all">Add To Basket</button>
             </div>
           </div>
         </div>
