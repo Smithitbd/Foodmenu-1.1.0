@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // --- Multer Configuration ---
-const storage = multer.diskStorage({
+/*const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
     },
@@ -29,7 +29,8 @@ const storage = multer.diskStorage({
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
-});
+});*/
+const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.use(cors());
@@ -76,34 +77,51 @@ app.post('/api/register-restaurant', upload.fields([
         let logoFileName = null;
         let nidFileName = null;
 
+        // Process Logo (Resize to webp)
         if (files['logo']) {
             const file = files['logo'][0];
             logoFileName = `logo-${Date.now()}.webp`;
-            await sharp(file.buffer).resize(400, 400, { fit: 'inside' }).webp({ quality: 80 }).toFile(path.join(uploadDir, logoFileName));
+            
+            // এখন file.buffer পাওয়া যাবে
+            await sharp(file.buffer)
+                .resize(400, 400, { fit: 'inside' })
+                .webp({ quality: 80 })
+                .toFile(path.join(uploadDir, logoFileName));
         }
 
+        // Process NID/Documents
         if (files['idFileFront']) {
             const file = files['idFileFront'][0];
+            
+            // If it's an image, resize it to webp
             if (file.mimetype.startsWith('image/')) {
                 nidFileName = `nid-${Date.now()}.webp`;
-                await sharp(file.buffer).resize(1200).webp({ quality: 75 }).toFile(path.join(uploadDir, nidFileName));
+                await sharp(file.buffer)
+                    .resize(1200)
+                    .webp({ quality: 75 })
+                    .toFile(path.join(uploadDir, nidFileName));
             } else {
+                // If it's a file (PDF), save directly
                 nidFileName = `nid-${Date.now()}${path.extname(file.originalname)}`;
                 fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
             }
         } else if (files['idFilePdf']) {
+            // Process specialized PDF upload
             const file = files['idFilePdf'][0];
-            nidFileName = `doc-${Date.now()}.pdf`;
+            nidFileName = `doc-${Date.now()}${path.extname(file.originalname)}`;
             fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
         }
 
         const hashedPassword = await bcrypt.hash(owner_password, saltRounds);
         const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, slug, logo, nid_doc, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        
         await db.query(sql, [owner_name, owner_email, hashedPassword, restaurant_name, slug, logoFileName, nidFileName, location, 'inactive']);
+        
         res.status(201).json({ message: "Registration Successful!" });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Internal Server Error" });
+        // লগ চেক করুন কি সমস্যা হচ্ছে
+        console.error("Registration Error:", error);
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
 });
 
@@ -129,6 +147,67 @@ app.post('/api/login', async (req, res) => {
         }
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/all-restaurants-list', async (req, res) => {
+    try {
+        // only active status restaurant
+        const sql = "SELECT id, restaurant_name, location, logo, slug, status FROM restaurants WHERE status = 'active'";
+        const [results] = await db.query(sql);
+
+        const formattedRestaurants = results.map(row => ({
+            id: row.id,
+            r_name: row.restaurant_name, 
+            address: row.location,      
+            pimage: row.logo ? `http://localhost:5000/uploads/${row.logo}` : 'https://via.placeholder.com/300', 
+            slug: row.slug,
+            ratings: "4.8" 
+        }));
+
+        res.json({ restaurants: formattedRestaurants });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+app.get('/api/area-restaurants', async (req, res) => {
+    try {
+        const { area, type } = req.query;
+
+        if (!area) {
+            return res.status(400).json({ error: "Area parameter is required" });
+        }
+        let sql = `
+            SELECT id, restaurant_name, location, logo, slug, foodcourt, status 
+            FROM restaurants 
+            WHERE location = ? AND status = 'active'
+        `;
+        let params = [area];
+
+        if (type && type !== 'all') {
+            sql += " AND foodcourt = ?";
+            params.push(type);
+        }
+
+        const [results] = await db.query(sql, params);
+
+        const formattedRestaurants = results.map(row => ({
+            id: row.id,
+            r_name: row.restaurant_name, 
+            address: row.location,      
+            pimage: row.logo ? `http://localhost:5000/uploads/${row.logo}` : 'https://via.placeholder.com/300', 
+            slug: row.slug,
+            foodcourt: row.foodcourt, 
+            ratings: (Math.random() * (5 - 4.2) + 4.2).toFixed(1), 
+            featured: Math.random() > 0.7 ? 1 : 0 
+        }));
+
+        res.json({ restaurants: formattedRestaurants });
+    } catch (err) {
+        console.error("Database Error:", err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
@@ -362,6 +441,22 @@ app.delete('/api/delivery-areas/:id', async (req, res) => {
         await db.query("DELETE FROM delivery_areas WHERE id = ?", [req.params.id]);
         res.json({ success: true });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/restaurant-locations', async (req, res) => {
+    try {
+        //only active restaurant location
+        const sql = "SELECT DISTINCT location FROM restaurants WHERE status = 'active' AND location IS NOT NULL";
+        const [results] = await db.query(sql);
+        
+
+        const locations = results.map(row => row.location);
+        
+
+        res.json(["All", ...locations]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // --- DASHBOARD STATS ---

@@ -7,18 +7,34 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaChevronLeft, FaChevronRight, FaStar } from 'react-icons/fa'; 
-
-import { manualRestaurants } from '../../Components/Shared/data/restaurantsData';
+import axios from 'axios'; // Axios ইম্পোর্ট নিশ্চিত করুন
 
 const TopMenu = () => {
   const titleRef = useRef(null);
   const [startTyping, setStartTyping] = useState(false);
+  const [restaurants, setRestaurants] = useState([]); 
   const [isDataLoading, setIsDataLoading] = useState(true); 
   const navigate = useNavigate();
 
+  // --- API: Fetch All Restaurant Data ---
   useEffect(() => {
-    // Data Loading time 
-    const timer = setTimeout(() => setIsDataLoading(false), 1200);
+    const fetchRestaurants = async () => {
+      try {
+        setIsDataLoading(true);
+        // আপনার দেওয়া সেইম API রুট ব্যবহার করছি
+        const res = await axios.get(`http://localhost:5000/api/all-restaurants-list`);
+        
+        // এখানে ডাটাবেস থেকে আসা ফরম্যাট করা ডেটা set করছি
+        setRestaurants(res.data.restaurants || []);
+      } catch (err) {
+        console.error("Error fetching restaurants:", err);
+        setRestaurants([]);
+      } finally {
+        setIsDataLoading(false);
+      }
+    };
+
+    fetchRestaurants();
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -33,11 +49,10 @@ const TopMenu = () => {
     
     return () => {
       observer.disconnect();
-      clearTimeout(timer);
     };
   }, []);
 
-  // (Shimmer Effect with Skeleton hover)
+  // Skeleton Item (No changes needed here)
   const SkeletonItem = () => (
     <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm p-2">
       <div className="relative h-32 md:h-40 bg-slate-200 rounded-xl overflow-hidden">
@@ -54,7 +69,7 @@ const TopMenu = () => {
     </div>
   );
 
-  // Restaurant card
+  // Restaurant card (Updated to use DB data)
   const MenuItemCard = ({ item }) => {
     const [imgLoaded, setImgLoaded] = useState(false);
 
@@ -70,15 +85,16 @@ const TopMenu = () => {
         <div className="relative h-32 md:h-44 overflow-hidden bg-slate-100">
           {!imgLoaded && <div className="absolute inset-0 bg-slate-200 animate-pulse" />}
           <img
-            src={item.pimage}
+            src={item.pimage} // DB থেকে আসা ইমেজ লিঙ্ক
             alt={item.r_name}
             onLoad={() => setImgLoaded(true)}
             loading="lazy"
             className={`w-full h-full object-cover transition-all duration-700 ${imgLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'} group-hover:scale-110`}
+            onError={(e) => { e.target.src = "https://via.placeholder.com/400x300?text=No+Image"; }}
           />
           <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-2 py-1 rounded-lg shadow-sm flex items-center gap-1">
             <FaStar className="text-yellow-400 text-[10px]" />
-            <span className="text-[10px] font-black text-slate-800">{item.ratings}</span>
+            <span className="text-[10px] font-black text-slate-800">{item.ratings || "4.8"}</span>
           </div>
         </div>
         
@@ -110,13 +126,13 @@ const TopMenu = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-[10px] md:text-xs font-black tracking-[0.4em] text-[#b02532] uppercase mb-3"
               >
-                {startTyping ? "Top Suggestions" : "Recommended for you"}
+                {startTyping ? "All Restaurants" : "Discover New Flavors"}
               </motion.p>
             </AnimatePresence>
             <h2 className="text-4xl md:text-6xl font-black text-slate-900 leading-[1.1] tracking-tighter">
-              Ultimate <span className="text-[#b02532] relative">Food
+              Explore Our <span className="text-[#b02532] relative">Restaurants
                 <svg className="absolute -bottom-2 left-0 w-full" viewBox="0 0 100 10" preserveAspectRatio="none"><path d="M0 5 Q 50 10 100 5" stroke="#b02532" strokeWidth="2" fill="none" opacity="0.3" /></svg>
-              </span> <br /> Experience
+              </span>
             </h2>
           </div>
 
@@ -126,7 +142,7 @@ const TopMenu = () => {
             onClick={() => navigate('/all-restaurants')} 
             className="w-fit px-10 py-4 bg-slate-900 text-white text-xs font-black uppercase tracking-widest rounded-full shadow-2xl transition-all"
           >
-            Explore All Brands
+            See All List
           </motion.button>
         </div>
 
@@ -157,7 +173,7 @@ const TopMenu = () => {
             }}
             autoplay={{ delay: 4000, disableOnInteraction: false }}
             pagination={{ clickable: true, dynamicBullets: true }}
-            loop={manualRestaurants.length > 5}
+            loop={restaurants.length > 5} // DB এর সংখ্যার ওপর নির্ভর করবে
             className="!pb-16 !px-2"
           >
             {isDataLoading 
@@ -166,7 +182,7 @@ const TopMenu = () => {
                     <SkeletonItem />
                   </SwiperSlide>
                 ))
-              : manualRestaurants.map((rest) => (
+              : restaurants.map((rest) => (
                   <SwiperSlide key={rest.id}>
                     <MenuItemCard item={rest} />
                   </SwiperSlide>

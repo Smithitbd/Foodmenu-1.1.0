@@ -13,11 +13,13 @@ const pinsData = [
   { name: 'Jail Road', top: '39%', left: '74%' },
   { name: 'Zindabazar', top: '48%', left: '53%' },
   { name: 'Bondorbazar', top: '50%', left: '20%' },
-  { name: 'Nayasarak', top: '55%', left: '30%' },
+  { name: 'NoyaSorak', top: '55%', left: '30%' },
   { name: 'Kumarpara', top: '60%', left: '40%' },
   { name: 'Shahjalal Uposohor', top: '67%', left: '60%' },
   { name: 'Tilagor', top: '75%', left: '70%' },
   { name: 'Shahporan', top: '68%', left: '80%' },
+  { name: 'Dariapara', top: '25%', left: '52%' },
+  { name: 'Kamal Bazar', top: '60%', left: '60%' },
 ];
 
 const ExploreArea = () => {
