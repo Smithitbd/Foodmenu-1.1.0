@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // --- Multer Configuration ---
-/*const storage = multer.diskStorage({
+const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
     },
@@ -29,8 +29,8 @@ if (!fs.existsSync(uploadDir)) {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
-});*/
-const storage = multer.memoryStorage();
+});
+//const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 app.use(cors());
@@ -706,27 +706,38 @@ app.post('/api/launch-offer', upload.single('offerImage'), async (req, res) => {
     const offerImage = req.file ? req.file.filename : null;
     const startDate = new Date().toISOString().split('T')[0]; 
 
+    // সার্ভার সাইড চেক: আজকের তারিখ কি শেষ তারিখের চেয়ে বড়?
+    const isExpired = new Date(endDate) < new Date(startDate);
+    const initialStatus = isExpired ? 'inactive' : 'active';
+
     const connection = await db.getConnection();
     try {
         await connection.beginTransaction();
 
+        // ১. অফার টেবিলে ডেটা ইনসার্ট
         await connection.query(
             `INSERT INTO offers (productId, offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, status) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')`,
-            [productId, offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage]
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [productId, offerTitle, itemName, originalPrice, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, initialStatus]
         );
 
-        
-        await connection.query(
-            "UPDATE products SET offer_price = ? WHERE id = ?",
-            [offerPrice, productId]
-        );
+        // ২. প্রোডাক্ট টেবিলে আপডেট (শুধুমাত্র যদি অফারটি এক্টিভ থাকে)
+        if (initialStatus === 'active') {
+            await connection.query(
+                "UPDATE products SET offer_price = ? WHERE id = ?",
+                [offerPrice, productId]
+            );
+        }
 
         await connection.commit();
-        res.json({ success: true, message: "Offer launched and product updated!" });
+        res.json({ 
+            success: true, 
+            message: initialStatus === 'active' ? "Offer launched successfully!" : "Offer added but it is already expired (Inactive)." 
+        });
     } catch (err) {
         await connection.rollback();
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ error: "Failed to launch offer" });
     } finally {
         connection.release();
     }
@@ -777,6 +788,50 @@ app.delete('/api/users/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+app.getRestaurantMenu = async (req, res) => {
+    const { slug } = req.query; // রেস্টুরেন্ট স্লাগ রিসিভ করা
+
+    try {
+        // ১. রেস্টুরেন্টের তথ্য আনা
+        const [restaurantRows] = await db.execute(
+            'SELECT restaurant_name as name, location, logo FROM restaurants WHERE slug = ?',
+            [slug]
+        );
+
+        if (restaurantRows.length === 0) {
+            return res.status(404).json({ error: "Restaurant not found" });
+        }
+
+        const restaurant = restaurantRows[0];
+
+        // ২. প্রোডাক্ট এবং ইমেজ আনা (JOIN ব্যবহার করে)
+        const [productRows] = await db.execute(
+            `SELECT 
+                p.id, 
+                p.name, 
+                p.price, 
+                p.offer_price, 
+                p.category, 
+                GROUP_CONCAT(pi.image_path) AS all_images
+             FROM products p
+             LEFT JOIN product_images pi ON p.id = pi.product_id
+             WHERE p.restaurant_id = (SELECT id FROM restaurants WHERE slug = ?)
+             GROUP BY p.id`,
+            [slug]
+        );
+
+        // ৩. রেসপন্স পাঠানো
+        res.json({
+            restaurant: restaurant,
+            products: productRows
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal server error" });
+    }
+};
 
 const PORT = 5000;
 app.listen(PORT, () => {

@@ -1,9 +1,9 @@
-import { React, useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../../src/context/CartContext'; 
 import { 
   FaShoppingCart, FaPlus, FaPhoneAlt, FaSearch, 
-  FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown, FaUtensils 
+  FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown, FaUtensils  
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
 import Swal from 'sweetalert2';
@@ -13,6 +13,18 @@ const RestaurantPage = () => {
   const navigate = useNavigate();
   const { addToCart, cart } = useCart();
 
+  // --- স্টেটসমূহ (API ডেটার জন্য) ---
+  const [products, setProducts] = useState([]); 
+  // restaurantData স্টেটটি প্রাথমিক লোডিং এর জন্য
+  const [restaurantData, setRestaurantData] = useState({
+    logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png", 
+    name: restaurantSlug?.replace(/-/g, ' '),
+    location: "Loading..."
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  // -----------------------------
+
   const [activeCategory, setActiveCategory] = useState('All');
   const [isUserFiltering, setIsUserFiltering] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,29 +33,61 @@ const RestaurantPage = () => {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isCartBouncing, setIsCartBouncing] = useState(false);
 
-  const [restaurantData] = useState({
-    logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png", 
-    name: restaurantSlug?.replace(/-/g, ' '),
-    location: "Zindabazar, Sylhet"
-  });
-
   const sidebarRef = useRef(null);
 
-  // Intersection Observer to highlight categories on scroll
+  // --- API Fetch ---
   useEffect(() => {
-    if (isUserFiltering || searchTerm !== '') return;
+    const fetchMenu = async () => {
+      try {
+        setLoading(true);
+        
+        // আপনার স্লাগ থেকে আইডি বের করা (ধরে নিচ্ছি স্লাগের শেষে আইডি আছে)
+        const resId = restaurantSlug.split('-').pop(); 
+        
+        const response = await fetch(`http://localhost:5000/api/menu-list?restaurant_id=${resId}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          // প্রোডাক্ট ডাটা সেট করা
+          setProducts(data || []);
+          
+          // রেস্টুরেন্ট ডাটা আপডেট করা (যদি API থেকে রেস্টুরেন্ট নাম না আসে তবে স্লাগ ব্যবহার করুন)
+          setRestaurantData({
+            logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png", 
+            name: restaurantSlug?.replace(/-/g, ' '),
+            location: "Sylhet" // API থেকে location আসলে তা ব্যবহার করুন
+          });
+        } else {
+          setError(data.error || "Failed to fetch menu");
+        }
+      } catch (err) {
+        setError("Network error or backend not connected");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMenu();
+  }, [restaurantSlug]);
+  // ----------------------------------------
+
+  // Intersection Observer
+  useEffect(() => {
+    if (isUserFiltering || searchTerm !== '' || products.length === 0) return;
     const observerOptions = { root: null, rootMargin: '-20% 0px -60% 0px', threshold: 0 };
     const observerCallback = (entries) => {
       entries.forEach((entry) => {
         if (entry.isIntersecting) {
           const cat = entry.target.getAttribute('data-category');
-          setActiveCategory(cat);
-          const activeBtn = document.getElementById(`btn-${cat}`);
-          if (activeBtn && sidebarRef.current) {
-            sidebarRef.current.scrollTo({
-              left: activeBtn.offsetLeft - 20,
-              behavior: 'smooth'
-            });
+          if (cat) {
+            setActiveCategory(cat);
+            const activeBtn = document.getElementById(`btn-${cat}`);
+            if (activeBtn && sidebarRef.current) {
+              sidebarRef.current.scrollTo({
+                left: activeBtn.offsetLeft - 20,
+                behavior: 'smooth'
+              });
+            }
           }
         }
       });
@@ -51,7 +95,7 @@ const RestaurantPage = () => {
     const observer = new IntersectionObserver(observerCallback, observerOptions);
     document.querySelectorAll('.product-card').forEach(el => observer.observe(el));
     return () => observer.disconnect();
-  }, [visibleCount, searchTerm, isUserFiltering]);
+  }, [products, visibleCount, searchTerm, isUserFiltering]);
 
   const handleCategoryClick = (cat) => {
     if (cat === 'All') {
@@ -65,9 +109,22 @@ const RestaurantPage = () => {
     }
   };
 
+  // handleAddToCart updated
   const handleAddToCart = async (product, id) => {
     try {
-      const result = await addToCart(product, restaurantSlug);
+      // ব্যাকএন্ডের SQL অনুযায়ী `images` ফিল্ডটি `all_images` থেকে আসছে
+      const productImage = product.images && product.images.length > 0 
+        ? `http://localhost:5000/uploads/${product.images[0]}` 
+        : product.img; 
+
+      const cartItem = {
+        ...product,
+        img: productImage,
+        price: product.price 
+      };
+
+      const result = await addToCart(cartItem, restaurantSlug);
+      
       if (result && result.status === 'success') {
         setTickedId(id);
         setIsCartBouncing(true);
@@ -95,37 +152,35 @@ const RestaurantPage = () => {
     }
   };
 
+  // --- useMemo Update (ব্যাকএন্ডের display_name এবং display_price ব্যবহার) ---
   const filteredProducts = useMemo(() => {
-    let prods = [
-      { id: 1, category: 'Food Offer', img: 'https://images.pexels.com/photos/1600711/pexels-photo-1600711.jpeg', name: 'Club Sandwich Deal', price: 180, desc: "Buy 1 Get 1 Club Sandwich with Fries." },
-      { id: 2, category: 'Food Offer', img: 'https://images.pexels.com/photos/1251198/pexels-photo-1251198.jpeg', name: 'Butter Naan Combo', price: 120, desc: "2 Butter Naan with Chicken Reshmi Kabab." },
-      { id: 3, category: 'Food Offer', img: 'https://images.pexels.com/photos/825661/pexels-photo-825661.jpeg', name: 'Pizza Party Pack', price: 999, desc: "2 Medium Pizzas with 1L Coke." },
-      { id: 4, category: 'Main Course', img: 'https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg', name: 'Mutton Kacchi', price: 450, desc: "Traditional Sylheti Kacchi with Saffron Rice." },
-      { id: 5, category: 'Main Course', img: 'https://images.pexels.com/photos/2673353/pexels-photo-2673353.jpeg', name: 'Grilled Chicken', price: 320, desc: "Quarter Grilled Chicken with Garlic Sauce." },
-      { id: 6, category: 'Main Course', img: 'https://images.pexels.com/photos/1624487/pexels-photo-1624487.jpeg', name: 'Beef Tehari', price: 280, desc: "Old Dhaka style aromatic Beef Tehari." },
-      { id: 7, category: 'Main Course', img: 'https://images.pexels.com/photos/9609835/pexels-photo-9609835.jpeg', name: 'Chicken Roast', price: 150, desc: "Wedding style Chicken Roast." },
-      { id: 8, category: 'Fast Food', img: 'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg', name: 'Cheese Burger', price: 280, desc: "Juicy beef patty with extra cheddar." },
-      { id: 9, category: 'Fast Food', img: 'https://images.pexels.com/photos/2983101/pexels-photo-2983101.jpeg', name: 'Crispy Wings', price: 220, desc: "6pcs Spicy Deep Fried Wings." },
-      { id: 10, category: 'Fast Food', img: 'https://images.pexels.com/photos/1583884/pexels-photo-1583884.jpeg', name: 'French Fries', price: 120, desc: "Large bucket of salted fries." },
-      { id: 11, category: 'Fast Food', img: 'https://images.pexels.com/photos/461198/pexels-photo-461198.jpeg', name: 'Chicken Shawarma', price: 160, desc: "Leads style pita bread wrap." },
-      { id: 12, category: 'Seafood', img: 'https://images.pexels.com/photos/262959/pexels-photo-262959.jpeg', name: 'Grilled Salmon', price: 850, desc: "Imported Salmon with butter lemon sauce." },
-      { id: 13, category: 'Seafood', img: 'https://images.pexels.com/photos/725991/pexels-photo-725991.jpeg', name: 'Prawn Tempura', price: 550, desc: "8pcs Jumbo Prawn Tempura." },
-      { id: 14, category: 'Seafood', img: 'https://images.pexels.com/photos/2827263/pexels-photo-2827263.jpeg', name: 'Fish & Chips', price: 420, desc: "Crispy Batter Fried Fish with tartar sauce." },
-      { id: 15, category: 'Indian', img: 'https://images.pexels.com/photos/2474661/pexels-photo-2474661.jpeg', name: 'Chicken Tikka', price: 380, desc: "Smoky tandoori marinated chicken." },
-      { id: 16, category: 'Indian', img: 'https://images.pexels.com/photos/6232532/pexels-photo-6232532.jpeg', name: 'Paneer Butter Masala', price: 320, desc: "Creamy vegetarian delight." },
-      { id: 17, category: 'Indian', img: 'https://images.pexels.com/photos/3926133/pexels-photo-3926133.jpeg', name: 'Dal Makhani', price: 180, desc: "Slow cooked black lentils with butter." },
-      { id: 18, category: 'Chinese', img: 'https://images.pexels.com/photos/2347311/pexels-photo-2347311.jpeg', name: 'Hakka Noodles', price: 220, desc: "Stir-fried noodles with veggies." },
-      { id: 19, category: 'Chinese', img: 'https://images.pexels.com/photos/1907228/pexels-photo-1907228.jpeg', name: 'Manchurian Chicken', price: 350, desc: "Spicy & sour gravy chicken." },
-      { id: 20, category: 'Chinese', img: 'https://images.pexels.com/photos/1241913/pexels-photo-1241913.jpeg', name: 'Egg Fried Rice', price: 200, desc: "Classic wok-tossed fried rice." }
-    ];
+    let prods = products.map(p => ({
+        id: p.id,
+        category: p.category,
+        // ব্যাকএন্ডের `all_images` থেকে প্রথম ইমেজ নেওয়া
+        img: p.all_images ? `http://localhost:5000/uploads/${p.all_images.split(',')[0]}` : "https://via.placeholder.com/150",
+        // ব্যাকএন্ডের `display_name` (অফার চেক সহ) ব্যবহার
+        name: p.display_name,
+        // ব্যাকএন্ডের `display_price` (অফার চেক সহ) ব্যবহার
+        price: p.display_price,
+        desc: p.description || "Delicious food item",
+        // ব্যাকএন্ডের `images` অ্যারে ব্যবহার
+        images: p.images
+    }));
+
     if (searchTerm) return prods.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
     if (isUserFiltering) return prods.filter(p => p.category === activeCategory);
     return prods;
-  }, [searchTerm, activeCategory, isUserFiltering]);
+  }, [products, searchTerm, activeCategory, isUserFiltering]);
+  // -----------------------------------------------------
 
   const cartTotalItems = useMemo(() => {
     return Array.isArray(cart) ? cart.reduce((total, item) => total + (item.quantity || 0), 0) : 0;
   }, [cart]);
+
+  // Loading and Error UI
+  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-xl">Loading Menu...</div>;
+  if (error) return <div className="min-h-screen flex items-center justify-center text-red-500 font-bold text-xl">Error: {error}</div>;
 
   return (
     <div className="bg-[#fcfcfc] min-h-screen pb-32 font-inter">
@@ -166,7 +221,7 @@ const RestaurantPage = () => {
         <div className="bg-white shadow-2xl rounded-[35px] md:rounded-[55px] p-3 md:p-4 flex flex-col xl:flex-row gap-4 border border-white">
           <div className="flex-1 flex items-center px-6 md:px-10 h-16 md:h-20 bg-slate-50 rounded-[30px] md:rounded-[45px]">
             <FaSearch className="text-slate-300 mr-4 md:mr-6" size={20} />
-            <input type="text" placeholder="Search..." className="w-full bg-transparent outline-none font-bold text-lg md:text-xl text-slate-800" onChange={(e) => setSearchTerm(e.target.value)} />
+            <input type="text" placeholder="Search products..." className="w-full bg-transparent outline-none font-bold text-lg md:text-xl text-slate-800" onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
           <div className="flex gap-3 h-16 md:h-20">
             <button className="flex-1 xl:w-48 bg-[#fff5f2] text-[#ff4d00] rounded-[30px] md:rounded-[45px] font-black text-xs md:text-sm flex items-center justify-center gap-2"><FaCommentDots size={18}/> <span>MESSAGE</span></button>
@@ -180,16 +235,12 @@ const RestaurantPage = () => {
           {/* --- STICKY SIDEBAR --- */}
           <div className="w-full lg:w-95 lg:sticky lg:top-28 z-40 h-fit">
             <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/60 border border-white p-8">
-              
               <div className="hidden lg:flex items-center gap-3 mb-8">
-                <div className="p-2 rounded-lg bg-rose-100 text-rose-600">
-                  <FaUtensils size={20} />
-                </div>
+                <div className="p-2 rounded-lg bg-rose-100 text-rose-600"><FaUtensils size={20} /></div>
                 <h3 className="text-lg font-black text-slate-800 tracking-tight uppercase">Categories</h3>
               </div>
-
               <div ref={sidebarRef} className="flex lg:flex-col gap-2 md:gap-3 overflow-x-auto hide-scrollbar pb-2 lg:pb-0">
-                {['All', 'Food Offer', 'Main Course', 'Fast Food', 'Seafood', 'Indian', 'Chinese'].map((cat) => (
+                {['All', 'Drinks', 'Burger', 'Pizza'].map((cat) => (
                   <button 
                     key={cat} 
                     id={`btn-${cat}`} 
@@ -215,7 +266,7 @@ const RestaurantPage = () => {
                   className="product-card bg-white rounded-[45px] p-4 shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-50 group cursor-pointer" 
                   onClick={() => setSelectedProduct(product)}>
                   <div className="aspect-square relative overflow-hidden rounded-[35px]">
-                    <img src={product.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="" />
+                    <img src={product.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={product.name} />
                     <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product, product.id); }}
                       className={`absolute top-4 right-4 w-14 h-14 rounded-[22px] flex items-center justify-center shadow-xl z-10 transition-all
                       ${tickedId === product.id ? 'green-pop' : 'bg-white/90 backdrop-blur-md text-[#be1e2d] hover:bg-[#be1e2d] hover:text-white'}`}>
@@ -262,7 +313,7 @@ const RestaurantPage = () => {
         <div className="fixed inset-0 z-[6000] flex items-end md:items-center justify-center p-0 md:p-6 bg-slate-950/90 backdrop-blur-sm">
           <div className="bg-white rounded-t-[40px] md:rounded-[60px] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative max-h-[90vh] overflow-y-auto hide-scrollbar">
             <button onClick={() => setSelectedProduct(null)} className="absolute top-5 right-5 z-50 bg-slate-100 p-4 rounded-full hover:bg-rose-500 hover:text-white transition-all"><FaTimes/></button>
-            <div className="w-full md:w-1/2 h-72 md:h-auto"><img src={selectedProduct.img} className="w-full h-full object-cover" alt="" /></div>
+            <div className="w-full md:w-1/2 h-72 md:h-auto"><img src={selectedProduct.img} className="w-full h-full object-cover" alt={selectedProduct.name} /></div>
             <div className="p-8 md:p-16 flex-1 flex flex-col justify-center">
               <span className="text-[#ff4d00] font-black text-xs uppercase mb-3">{selectedProduct.category}</span>
               <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic mb-6">{selectedProduct.name}</h2>
