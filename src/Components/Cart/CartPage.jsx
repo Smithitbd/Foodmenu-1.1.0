@@ -55,7 +55,7 @@ const RestaurantPage = () => {
           setRestaurantData({
             logo: "https://cdn-icons-png.flaticon.com/512/732/732217.png", 
             name: restaurantSlug?.replace(/-/g, ' '),
-            location: "Sylhet" // API থেকে location আসলে তা ব্যবহার করুন
+            location: restaurantData.location // API থেকে location আসলে তা ব্যবহার করুন
           });
         } else {
           setError(data.error || "Failed to fetch menu");

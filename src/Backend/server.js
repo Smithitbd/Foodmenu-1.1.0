@@ -832,6 +832,43 @@ app.getRestaurantMenu = async (req, res) => {
         res.status(500).json({ error: "Internal server error" });
     }
 };
+app.get('/api/menu-list', async (req, res) => {
+    try {
+        const { restaurant_id } = req.query;
+
+        const sql = `SELECT 
+                p.*, 
+                r.restaurant_name, r.location, r.logo as restaurant_logo, r.phone,
+                GROUP_CONCAT(pi.image_path) as all_images,
+                o.offerTitle,
+                o.offerPrice as promo_price,
+                o.endDate as offer_end,
+                o.status as offer_status,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', 1, 0) AS has_offer,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerTitle, p.name) AS display_name,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS display_price
+            FROM products p 
+            INNER JOIN restaurants r ON p.restaurant_id = r.id
+            LEFT JOIN product_images pi ON p.id = pi.product_id 
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE p.restaurant_id = ? 
+            GROUP BY p.id 
+            ORDER BY p.id DESC`;
+
+        const [results] = await db.query(sql, [restaurant_id]);
+        
+        // ইমেজগুলোকে অ্যারেতে রূপান্তর
+        const updatedResults = results.map(item => ({
+            ...item,
+            images: item.all_images ? item.all_images.split(',') : [],
+        }));
+
+        res.json(updatedResults);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 const PORT = 5000;
 app.listen(PORT, () => {
