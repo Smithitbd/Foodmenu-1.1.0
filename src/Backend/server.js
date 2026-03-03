@@ -870,6 +870,82 @@ app.get('/api/menu-list', async (req, res) => {
     }
 });
 
+// --- PUBLIC API: GET FULL RESTAURANT DATA BY SLUG ---
+app.get('/api/public/restaurant/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+
+        // ১. রেস্টুরেন্টের প্রোফাইল ডাটা এবং ডেলিভারি এরিয়া আনা
+        const [restaurantRows] = await db.query(
+            `SELECT id, restaurant_name, location, logo, bg_image, contact_mobile, status 
+             FROM restaurants WHERE slug = ?`, [slug]
+        );
+
+        if (restaurantRows.length === 0) {
+            return res.status(404).json({ message: "Restaurant not found" });
+        }
+
+        const restaurant = restaurantRows[0];
+        const resId = restaurant.id;
+
+        // ২. ডেলিভারি এরিয়া এবং চার্জ আনা
+        const [areas] = await db.query(
+            "SELECT areaName, deliveryCharge FROM delivery_areas WHERE restaurant_id = ?", [resId]
+        );
+
+        // ৩. সব প্রোডাক্ট, ইমেজ এবং অফার একসাথে আনা
+        const sqlMenu = `
+            SELECT 
+                p.id, p.name, p.price, p.offer_price, p.category, p.is_available,
+                GROUP_CONCAT(pi.image_path) as all_images,
+                o.offerTitle, o.offerPrice as promo_price, o.status as offer_status,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', 1, 0) AS has_offer
+            FROM products p 
+            LEFT JOIN product_images pi ON p.id = pi.product_id 
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE p.restaurant_id = ? 
+            GROUP BY p.id 
+            ORDER BY p.category ASC, p.id DESC`;
+
+        const [products] = await db.query(sqlMenu, [resId]);
+
+        // ৪. ডাটা ফরম্যাটিং (Image Path যোগ করা এবং Category অনুযায়ী Group করা)
+        const formattedMenu = products.reduce((acc, item) => {
+            const category = item.category || 'Uncategorized';
+            
+            // ইমেজের ফুল লিঙ্ক তৈরি
+            const imageArray = item.all_images 
+                ? item.all_images.split(',').map(img => `http://localhost:5000/uploads/${img}`)
+                : [];
+
+            if (!acc[category]) acc[category] = [];
+            
+            acc[category].push({
+                ...item,
+                images: imageArray,
+                display_price: item.has_offer ? item.promo_price : item.price,
+                display_name: item.has_offer ? item.offerTitle : item.name
+            });
+            return acc;
+        }, {});
+
+        // ৫. ফাইনাল রেসপন্স
+        res.json({
+            profile: {
+                ...restaurant,
+                logo: restaurant.logo ? `http://localhost:5000/uploads/${restaurant.logo}` : null,
+                bg_image: restaurant.bg_image ? `http://localhost:5000/uploads/${restaurant.bg_image}` : null,
+                delivery_info: areas
+            },
+            menu: formattedMenu // এটি { "Dessert": [...], "Pitha": [...] } ফরম্যাটে যাবে
+        });
+
+    } catch (error) {
+        console.error("Single API Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
