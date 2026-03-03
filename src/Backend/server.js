@@ -946,6 +946,175 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
     }
 });
 
+// --- 🔥 MULTI-RESTAURANT ORDER API ---
+app.post('/api/place-order', async (req, res) => {
+    const { customer, items, area, totalAmount } = req.body;
+    const connection = await db.getConnection();
+
+    try {
+        await connection.beginTransaction();
+
+        // ১. আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী গ্রুপ করা (সার্ভার সাইড সেফটি)
+        const groupedItems = items.reduce((acc, item) => {
+            const resId = item.restaurant_id || item.resId; // নিশ্চিত করুন ফ্রন্টেন্ড থেকে ID আসছে
+            if (!acc[resId]) acc[resId] = [];
+            acc[resId].push(item);
+            return acc;
+        }, {});
+
+        const orderSummaries = [];
+
+        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার তৈরি করা
+        for (const resId in groupedItems) {
+            const restaurantItems = groupedItems[resId];
+            const subtotal = restaurantItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+            
+            // ডেলিভারি চার্জ ক্যালকুলেশন (ডাটাবেজ থেকে এরিয়া অনুযায়ী চার্জ চেক করা ভালো, আপাতত ফ্রন্টেন্ড থেকে আসছে)
+            // এখানে আপনি চাইলে নির্দিষ্ট রেস্টুরেন্টের ডেলিভারি চার্জ যোগ করতে পারেন।
+
+            const [orderResult] = await connection.query(
+                `INSERT INTO orders (restaurant_id, customer_name, customer_phone, customer_address, subtotal, total_amount, order_status, payment_method) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [resId, customer.name, customer.phone, `${area}, ${customer.address}`, subtotal, subtotal, 'pending', 'COD']
+            );
+
+            const orderId = orderResult.insertId;
+
+            // ৩. অর্ডার আইটেমগুলো সেভ করা
+            const itemValues = restaurantItems.map(item => [
+                orderId, 
+                item.id, // product_id
+                item.quantity, 
+                item.price, 
+                item.price * item.quantity
+            ]);
+
+            await connection.query(
+                `INSERT INTO order_items (order_id, product_id, quantity, price, total_price) VALUES ?`,
+                [itemValues]
+            );
+
+            orderSummaries.push({ restaurant_id: resId, order_id: orderId });
+        }
+
+        await connection.commit();
+        res.status(201).json({ 
+            success: true, 
+            message: "Order placed successfully!", 
+            orders: orderSummaries 
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Order Error:", error);
+        res.status(500).json({ success: false, message: "Order failed", error: error.message });
+    } finally {
+        connection.release();
+    }
+});
+
+// সব রেস্টুরেন্টের জন্য কমন এরিয়া এবং তাদের চার্জ আনার এপিআই
+app.post('/api/get-cart-delivery-info', async (req, res) => {
+    try {
+        const { restaurantIds } = req.body; // Array of IDs [1, 2, 5]
+        
+        if (!restaurantIds || restaurantIds.length === 0) {
+            return res.json([]);
+        }
+
+        // ঐ নির্দিষ্ট রেস্টুরেন্টগুলোর ডেলিভারি এরিয়া এবং চার্জ নিয়ে আসা
+        const [rows] = await db.query(
+            "SELECT restaurant_id, areaName, deliveryCharge FROM delivery_areas WHERE restaurant_id IN (?)",
+            [restaurantIds]
+        );
+
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Place Order API
+app.post('/api/placee-order', async (req, res) => {
+    const { 
+        customerInfo, 
+        cartItems, 
+        method, 
+        area, 
+        paymentMethod,
+        extraCharge // এটি ডেলিভারি চার্জ হিসেবে কাজ করবে
+    } = req.body;
+
+    try {
+        // ১. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী আলাদা করা (Multi-vendor support)
+        const itemsByRestaurant = cartItems.reduce((acc, item) => {
+            if (!acc[item.restaurant_id]) acc[item.restaurant_id] = [];
+            acc[item.restaurant_id].push(item);
+            return acc;
+        }, {});
+
+        const restaurantIds = Object.keys(itemsByRestaurant);
+        const orderResults = [];
+
+        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার লুপ চালানো
+        for (const resId of restaurantIds) {
+            const items = itemsByRestaurant[resId];
+            const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            
+            // প্রতিটি রেস্টুরেন্টের জন্য আলাদা ডেলিভারি চার্জ (যদি মাল্টি-ভেন্ডর হয় তবে ভাগ হবে অথবা আপনার লজিক অনুযায়ী হবে)
+            // এখানে সহজ করার জন্য মোট চার্জকে রেস্টুরেন্ট সংখ্যা দিয়ে ভাগ করা হয়েছে অথবা আপনি আপনার মতো দিতে পারেন
+            const chargePerRes = extraCharge / restaurantIds.length;
+            const totalAmount = subtotal + chargePerRes;
+
+            const orderSql = `INSERT INTO orders 
+                (restaurant_id, customer_name, customer_phone, customer_address, subtotal, 
+                order_type, total_amount, payment_method, order_status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`;
+
+            // একটি প্রমিজ ভিত্তিক কুয়েরি চালানো
+            const [orderResult] = await db.promise().query(orderSql, [
+                resId,
+                customerInfo.name,
+                customerInfo.phone,
+                customerInfo.address || 'N/A',
+                subtotal,
+                method, // Delivery, Pickup, Dine-In
+                totalAmount,
+                paymentMethod.toUpperCase(), // CASH or DIGITAL
+            ]);
+
+            const orderId = orderResult.insertId;
+
+            // ৩. order_items টেবিলে ডাটা ইনসার্ট করা
+            const itemValues = items.map(item => [
+                orderId,
+                item.id, // আপনার SQL এ এটি product_id
+                item.quantity,
+                item.price,
+                item.price * item.quantity
+            ]);
+
+            const itemsSql = `INSERT INTO order_items 
+                (order_id, product_id, quantity, price, total_price) 
+                VALUES ?`;
+
+            await db.promise().query(itemsSql, [itemValues]);
+            
+            orderResults.push({ restaurantId: resId, orderId: orderId });
+        }
+
+        res.json({ 
+            success: true, 
+            message: "Order placed successfully!", 
+            details: orderResults 
+        });
+
+    } catch (error) {
+        console.error("Order Error:", error);
+        res.status(500).json({ success: false, message: "Server Error: Order could not be placed." });
+    }
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
