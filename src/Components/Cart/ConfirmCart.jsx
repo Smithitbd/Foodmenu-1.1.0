@@ -251,7 +251,7 @@ const ConfirmCart = () => {
 
           <div className="sticky top-6">
             <CheckoutBox
-              cartItems={cartItems} // 🔥 এটি দিতে ভুলে গিয়েছিলেন, তাই এরর আসছিল
+              cartItems={cartItems} //
               totalAmount={totalProductPrice}
               deliveryCharge={totalDeliveryCharge}
               availableAreas={availableAreas} 
