@@ -953,12 +953,17 @@ app.post('/api/place-order', async (req, res) => {
         extraCharge 
     } = req.body;
 
+    // ১. ভ্যালিডেশন চেক (কোড ২ থেকে নেওয়া)
+    if (!cartItems || cartItems.length === 0) {
+        return res.status(400).json({ success: false, message: "Cart is empty!" });
+    }
+
     const connection = await db.getConnection();
 
     try {
         await connection.beginTransaction();
 
-        // ১. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী গ্রুপ করা
+        // ২. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী গ্রুপ করা (কোড ২ এর লজিক)
         const itemsByRestaurant = cartItems.reduce((acc, item) => {
             const resId = item.restaurant_id || item.resId;
             if (!acc[resId]) acc[resId] = [];
@@ -969,33 +974,33 @@ app.post('/api/place-order', async (req, res) => {
         const restaurantIds = Object.keys(itemsByRestaurant);
         const results = [];
 
-        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার প্রসেস করা
+        // ৩. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার প্রসেস করা
         for (const resId of restaurantIds) {
             const items = itemsByRestaurant[resId];
             
-            // সাবটোটাল
+            // সাবটোটাল ক্যালকুলেশন
             const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             
-            // ডেলিভারি চার্জ ভাগ করা অথবা ফ্রন্টেন্ডের লজিক অনুযায়ী বসানো
-            // যদি প্রতিটি রেস্টুরেন্টের আলাদা চার্জ থাকে তবে extraCharge এর বদলে logic change করতে হবে
-            const chargePerRes = extraCharge / restaurantIds.length; 
+            // ডেলিভারি চার্জ ডিস্ট্রিবিউশন
+            // মাল্টি-ভেন্ডর হলে মোট চার্জকে রেস্টুরেন্ট সংখ্যা দিয়ে ভাগ করা হচ্ছে
+            const chargePerRes = method === 'Delivery' ? (extraCharge / restaurantIds.length) : (method === 'Pickup' ? (extraCharge / restaurantIds.length) : 0);
             const finalTotal = subtotal + chargePerRes;
 
             const orderSql = `INSERT INTO orders 
                 (restaurant_id, customer_name, customer_phone, customer_address, 
-                subtotal, order_type, table_id, total_amount, payment_method, order_status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`;
+                subtotal, order_type, table_id, total_amount, payment_method, order_status, created_at) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`;
 
             const [orderResult] = await connection.query(orderSql, [
                 resId,
                 customerInfo.name || 'Customer',
                 customerInfo.phone || '000',
-                method === 'Delivery' ? `${area}, ${customerInfo.address}` : 'N/A',
+                method === 'Delivery' ? `${area}, ${customerInfo.address}` : 'Pickup/Dine-In',
                 subtotal,
                 method || 'Delivery',
-                selectedTable || null,
+                method === 'Dine-In' ? selectedTable : null,
                 finalTotal,
-                paymentMethod === 'Cash' ? 'CASH' : 'DIGITAL'
+                paymentMethod ? paymentMethod.toUpperCase() : 'CASH' // কোড ২ এর মতো UpperCase
             ]);
 
             const orderId = orderResult.insertId;
@@ -1006,7 +1011,7 @@ app.post('/api/place-order', async (req, res) => {
                 item.id || item.product_id, 
                 item.quantity,
                 item.price,
-                item.price * item.quantity
+                (item.price * item.quantity)
             ]);
 
             const itemsSql = `INSERT INTO order_items 
@@ -1025,7 +1030,7 @@ app.post('/api/place-order', async (req, res) => {
         console.error("Order API Error:", error);
         res.status(500).json({ success: false, message: error.message });
     } finally {
-        connection.release();
+        connection.release(); // কানেকশন রিলিজ করা
     }
 });
 
@@ -1050,8 +1055,22 @@ app.post('/api/get-cart-delivery-info', async (req, res) => {
     }
 });
 
+// টেবিল লিস্ট আনার এপিআই (রেস্টুরেন্ট অনুযায়ী)
+app.get('/api/get-tables/:restaurantId', async (req, res) => {
+    try {
+        const { restaurantId } = req.params;
+        const [rows] = await db.query(
+            "SELECT id, table_number, capacity, is_available FROM restaurant_tables WHERE restaurant_id = ?",
+            [restaurantId]
+        );
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // Place Order API
-app.post('/api/place-order', async (req, res) => {
+/*app.post('/api/place-order', async (req, res) => {
     const { 
         customerInfo, 
         cartItems, 
@@ -1137,7 +1156,7 @@ app.post('/api/place-order', async (req, res) => {
     } finally {
         connection.release();
     }
-});
+});*/
 
 const PORT = 5000;
 app.listen(PORT, () => {
