@@ -1,3 +1,4 @@
+// CartContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import Swal from 'sweetalert2';
 
@@ -7,21 +8,31 @@ export const CartProvider = ({ children }) => {
   const [cart, setCart] = useState([]);
   const [orderType, setOrderType] = useState('Delivery');
 
-  useEffect(() => {
+  // ১. সেশন থেকে ডাটা লোড করা (Initial & Event based)
+  const syncWithSession = () => {
     const savedCart = JSON.parse(sessionStorage.getItem('global_cart_data')) || [];
     setCart(savedCart);
+  };
+
+  useEffect(() => {
+    syncWithSession();
+    // কাস্টম ইভেন্ট লিসেনার যাতে অন্য পেজে ডিলিট করলে এখানেও আপডেট হয়
+    window.addEventListener('cartUpdate', syncWithSession);
+    return () => window.removeEventListener('cartUpdate', syncWithSession);
   }, []);
 
+  // ২. কার্ট স্টেট চেঞ্জ হলে সেশনে সেভ করা
   useEffect(() => {
     sessionStorage.setItem('global_cart_data', JSON.stringify(cart));
   }, [cart]);
 
-  // async করা হয়েছে কারণ Swal.fire একটি প্রমিজ
   const addToCart = async (product, restaurantSlug) => {
-    const existingRestaurantSlugs = cart.map(item => item.restaurantSlug);
+    // *** গুরুত্বপূর্ণ: অ্যাড করার ঠিক আগে সেশন থেকে একদম লেটেস্ট ডাটা নিন ***
+    const latestCart = JSON.parse(sessionStorage.getItem('global_cart_data')) || [];
+    
+    const existingRestaurantSlugs = latestCart.map(item => item.restaurantSlug);
     const isNewVendor = existingRestaurantSlugs.length > 0 && !existingRestaurantSlugs.includes(restaurantSlug);
 
-    // 1. DINE-IN RESTRICTION (SweetAlert)
     if (orderType === 'Dine-In' && isNewVendor) {
       await Swal.fire({
         icon: 'error',
@@ -32,55 +43,51 @@ export const CartProvider = ({ children }) => {
       return { status: 'error' };
     }
 
-    // 2. MULTI-VENDOR ALERT (SweetAlert Confirm Box)
     if (isNewVendor) {
       const result = await Swal.fire({
         title: 'Different Restaurant?',
-        text: "You are adding items from a different restaurant. Separate delivery charges will apply for each store. Do you want to continue?",
+        text: "You are adding items from a different restaurant. Separate delivery charges will apply.",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#be1e2d',
-        cancelButtonColor: '#6e7881',
         confirmButtonText: 'Yes, continue',
-        cancelButtonText: 'No, cancel'
       });
 
-      if (!result.isConfirmed) {
-        return { status: 'cancelled' };
-      }
+      if (!result.isConfirmed) return { status: 'cancelled' };
     }
 
-    // 3. CART UPDATE LOGIC (Same as before)
-    setCart((prevCart) => {
-      const existingItemIndex = prevCart.findIndex(
+    // স্টেট আপডেট করার সময় লেটেস্ট সেশন ডাটা ব্যবহার করুন
+    setCart(() => {
+      const updatedCart = [...latestCart];
+      const existingItemIndex = updatedCart.findIndex(
         (item) => item.name === product.name && item.restaurantSlug === restaurantSlug
       );
 
       if (existingItemIndex !== -1) {
-        const updatedCart = [...prevCart];
         updatedCart[existingItemIndex] = {
           ...updatedCart[existingItemIndex],
           quantity: updatedCart[existingItemIndex].quantity + 1
         };
-        return updatedCart;
+      } else {
+        updatedCart.push({ ...product, quantity: 1, restaurantSlug });
       }
-
-      return [...prevCart, { ...product, quantity: 1, restaurantSlug }];
+      return updatedCart;
     });
 
     return { status: 'success' };
   };
 
   const updateQuantity = (productName, restaurantSlug, delta) => {
-    setCart((prevCart) => 
-      prevCart.map((item) => {
+    setCart((prevCart) => {
+      const updated = prevCart.map((item) => {
         if (item.name === productName && item.restaurantSlug === restaurantSlug) {
           const newQty = item.quantity + delta;
           return newQty > 0 ? { ...item, quantity: newQty } : null;
         }
         return item;
-      }).filter(Boolean)
-    );
+      }).filter(Boolean);
+      return updated;
+    });
   };
 
   const clearCart = () => { 
