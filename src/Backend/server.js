@@ -72,54 +72,49 @@ app.post('/api/register-restaurant', upload.fields([
     { name: 'idFilePdf', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        const { owner_name, owner_email, owner_password, restaurant_name, slug, location } = req.body;
+        
+        const { owner_name, owner_email, owner_password, restaurant_name, slug, location, restaurant_category } = req.body;
+        
         const files = req.files || {};
         let logoFileName = null;
         let nidFileName = null;
 
-        // Process Logo (Resize to webp)
+        // Process Logo (Memory buffer থেকে শার্প দিয়ে রিসাইজ)
         if (files['logo']) {
             const file = files['logo'][0];
             logoFileName = `logo-${Date.now()}.webp`;
             
-            // এখন file.buffer পাওয়া যাবে
-            await sharp(file.buffer)
+            // Note: sharp(file.path) দিতে হবে যদি diskStorage ব্যবহার করো, 
+            // আর memoryStorage হলে file.buffer দিতে হবে।
+            await sharp(file.path) 
                 .resize(400, 400, { fit: 'inside' })
                 .webp({ quality: 80 })
                 .toFile(path.join(uploadDir, logoFileName));
+            
+            // মূল ফাইলটি ডিলিট করে দেওয়া ভালো (যদি diskStorage ব্যবহার করো)
+            fs.unlinkSync(file.path);
         }
 
         // Process NID/Documents
         if (files['idFileFront']) {
             const file = files['idFileFront'][0];
-            
-            // If it's an image, resize it to webp
-            if (file.mimetype.startsWith('image/')) {
-                nidFileName = `nid-${Date.now()}.webp`;
-                await sharp(file.buffer)
-                    .resize(1200)
-                    .webp({ quality: 75 })
-                    .toFile(path.join(uploadDir, nidFileName));
-            } else {
-                // If it's a file (PDF), save directly
-                nidFileName = `nid-${Date.now()}${path.extname(file.originalname)}`;
-                fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
-            }
+            nidFileName = `nid-${Date.now()}${path.extname(file.originalname)}`;
+            fs.renameSync(file.path, path.join(uploadDir, nidFileName));
         } else if (files['idFilePdf']) {
-            // Process specialized PDF upload
             const file = files['idFilePdf'][0];
             nidFileName = `doc-${Date.now()}${path.extname(file.originalname)}`;
-            fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
+            fs.renameSync(file.path, path.join(uploadDir, nidFileName));
         }
 
         const hashedPassword = await bcrypt.hash(owner_password, saltRounds);
-        const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, slug, logo, nid_doc, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+        // SQL কুয়েরিতে restaurant_category কলামটি যোগ করা হয়েছে
+        const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, logo, nid_doc, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
-        await db.query(sql, [owner_name, owner_email, hashedPassword, restaurant_name, slug, logoFileName, nidFileName, location, 'inactive']);
+        await db.query(sql, [owner_name, owner_email, hashedPassword, restaurant_name, restaurant_category || 'Others', slug, logoFileName, nidFileName, location, 'inactive']);
         
         res.status(201).json({ message: "Registration Successful!" });
     } catch (error) {
-        // লগ চেক করুন কি সমস্যা হচ্ছে
         console.error("Registration Error:", error);
         res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
@@ -1035,60 +1030,68 @@ app.post('/api/get-cart-delivery-info', async (req, res) => {
 });
 
 // Place Order API
-app.post('/api/placee-order', async (req, res) => {
+app.post('/api/place-order', async (req, res) => {
     const { 
         customerInfo, 
         cartItems, 
         method, 
         area, 
-        paymentMethod,
-        extraCharge // এটি ডেলিভারি চার্জ হিসেবে কাজ করবে
+        selectedTable, 
+        paymentMethod, 
+        extraCharge 
     } = req.body;
 
+    const connection = await db.getConnection();
+
     try {
-        // ১. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী আলাদা করা (Multi-vendor support)
+        await connection.beginTransaction();
+
+        // ১. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী গ্রুপ করা
         const itemsByRestaurant = cartItems.reduce((acc, item) => {
-            if (!acc[item.restaurant_id]) acc[item.restaurant_id] = [];
-            acc[item.restaurant_id].push(item);
+            const resId = item.restaurant_id || item.resId;
+            if (!acc[resId]) acc[resId] = [];
+            acc[resId].push(item);
             return acc;
         }, {});
 
         const restaurantIds = Object.keys(itemsByRestaurant);
-        const orderResults = [];
+        const results = [];
 
-        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার লুপ চালানো
+        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার প্রসেস করা
         for (const resId of restaurantIds) {
             const items = itemsByRestaurant[resId];
+            
+            // সাবটোটাল ক্যালকুলেশন
             const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
             
-            // প্রতিটি রেস্টুরেন্টের জন্য আলাদা ডেলিভারি চার্জ (যদি মাল্টি-ভেন্ডর হয় তবে ভাগ হবে অথবা আপনার লজিক অনুযায়ী হবে)
-            // এখানে সহজ করার জন্য মোট চার্জকে রেস্টুরেন্ট সংখ্যা দিয়ে ভাগ করা হয়েছে অথবা আপনি আপনার মতো দিতে পারেন
+            // ডেলিভারি চার্জ ভাগ করা (Multi-vendor হলে)
             const chargePerRes = extraCharge / restaurantIds.length;
-            const totalAmount = subtotal + chargePerRes;
+            const finalTotal = subtotal + chargePerRes;
 
+            // ৩. SQL কুয়েরি (তোমার টেবিল স্ট্রাকচার অনুযায়ী)
             const orderSql = `INSERT INTO orders 
-                (restaurant_id, customer_name, customer_phone, customer_address, subtotal, 
-                order_type, total_amount, payment_method, order_status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`;
+                (restaurant_id, customer_name, customer_phone, customer_address, 
+                subtotal, order_type, table_id, total_amount, payment_method, order_status) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`;
 
-            // একটি প্রমিজ ভিত্তিক কুয়েরি চালানো
-            const [orderResult] = await db.promise().query(orderSql, [
+            const [orderResult] = await connection.query(orderSql, [
                 resId,
-                customerInfo.name,
-                customerInfo.phone,
-                customerInfo.address || 'N/A',
+                customerInfo.name || 'Walk-in Customer',
+                customerInfo.phone || 'N/A',
+                method === 'Delivery' ? `${area}, ${customerInfo.address}` : 'N/A',
                 subtotal,
-                method, // Delivery, Pickup, Dine-In
-                totalAmount,
-                paymentMethod.toUpperCase(), // CASH or DIGITAL
+                method, // 'Delivery', 'Pickup', 'Dine-In'
+                selectedTable || null, // Dine-in হলে Table ID যাবে
+                finalTotal,
+                paymentMethod === 'Cash' ? 'CASH' : 'DIGITAL'
             ]);
 
             const orderId = orderResult.insertId;
 
-            // ৩. order_items টেবিলে ডাটা ইনসার্ট করা
+            // ৪. অর্ডার আইটেমগুলো ইনসার্ট করা
             const itemValues = items.map(item => [
                 orderId,
-                item.id, // আপনার SQL এ এটি product_id
+                item.id, 
                 item.quantity,
                 item.price,
                 item.price * item.quantity
@@ -1098,20 +1101,20 @@ app.post('/api/placee-order', async (req, res) => {
                 (order_id, product_id, quantity, price, total_price) 
                 VALUES ?`;
 
-            await db.promise().query(itemsSql, [itemValues]);
-            
-            orderResults.push({ restaurantId: resId, orderId: orderId });
+            await connection.query(itemsSql, [itemValues]);
+
+            results.push({ restaurant_id: resId, order_id: orderId });
         }
 
-        res.json({ 
-            success: true, 
-            message: "Order placed successfully!", 
-            details: orderResults 
-        });
+        await connection.commit();
+        res.status(201).json({ success: true, message: "Order placed!", details: results });
 
     } catch (error) {
-        console.error("Order Error:", error);
-        res.status(500).json({ success: false, message: "Server Error: Order could not be placed." });
+        await connection.rollback();
+        console.error("Order API Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        connection.release();
     }
 });
 
