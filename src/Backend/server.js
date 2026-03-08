@@ -208,25 +208,58 @@ app.get('/api/area-restaurants', async (req, res) => {
 
 // --- MENU & PRODUCT APIS ---
 app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
+    let productId = null; // ট্র্যাক রাখার জন্য যে প্রোডাক্ট ইনসার্ট হয়েছে কি না
     try {
-        const { restaurant_id, name, price, offer_price, category } = req.body;
+        const { restaurant_id, name, price, offer_price, category, estimated_time, quantity } = req.body;
         const files = req.files;
-        const [productResult] = await db.query(
-            `INSERT INTO products (restaurant_id, name, price, offer_price, category) VALUES (?, ?, ?, ?, ?)`,
-            [restaurant_id, name, price, offer_price || 0, category]
-        );
-        const productId = productResult.insertId;
 
+        // ১. ডাটাবেসে প্রোডাক্ট ইনসার্ট
+        const [productResult] = await db.query(
+            `INSERT INTO products (restaurant_id, name, price, offer_price, category, estimated_time, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [restaurant_id, name, price, offer_price || 0, category, estimated_time || 20, quantity || 'Full']
+        );
+        
+        productId = productResult.insertId;
+
+        // ২. ইমেজ প্রসেসিং (যদি ফাইল থাকে)
         if (files && files.length > 0) {
             for (const file of files) {
                 const fileName = `prod-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-                await sharp(file.buffer).resize(500, 500, { fit: 'cover' }).webp({ quality: 80 }).toFile(path.join(uploadDir, fileName));
+                const uploadPath = path.join(__dirname, 'uploads', fileName);
+
+                // গুরুত্বপূর্ণ: sharp এ ফাইল বাফার চেক করা
+                if (!file.buffer) {
+                    console.error("File buffer missing for:", file.originalname);
+                    continue; // বাফার না থাকলে এই ইমেজটি স্কিপ করবে
+                }
+
+                await sharp(file.buffer)
+                    .resize(500, 500, { fit: 'cover' })
+                    .webp({ quality: 80 })
+                    .toFile(uploadPath);
+                
+                // ডাটাবেসে ইমেজ পাথ সেভ
                 await db.query(`INSERT INTO product_images (product_id, image_path) VALUES (?, ?)`, [productId, fileName]);
             }
         }
-        res.status(201).json({ message: "Product added successfully!", productId });
+
+        // ৩. সবকিছু ঠিক থাকলে সাকসেস রেসপন্স
+        return res.status(201).json({ 
+            success: true, 
+            message: "Product and images added successfully!", 
+            productId 
+        });
+
     } catch (error) {
-        res.status(500).json({ message: "Server error occurred!" });
+        console.error("Server Side Error:", error);
+        
+        // যদি ডাটা ইনসার্ট হওয়ার পর ইমেজ সেকশনে এরর আসে, ইউজারকে মেসেজ দিন
+        res.status(500).json({ 
+            success: false, 
+            message: productId 
+                ? "Product added but image upload failed: " + error.message 
+                : "Failed to add product: " + error.message
+        });
     }
 });
 

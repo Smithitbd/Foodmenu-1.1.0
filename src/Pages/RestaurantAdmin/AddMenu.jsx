@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Calendar, Tag, Layers, DollarSign, List, PlusCircle, X, Edit2, ChevronDown } from 'lucide-react';
+import { Upload, Calendar, Tag, Layers, DollarSign, List, PlusCircle, X, Edit2, ChevronDown, Clock } from 'lucide-react';
 import Swal from 'sweetalert2';
 import axios from 'axios'; 
 
@@ -29,6 +29,7 @@ const restaurantId = localStorage.getItem('resId');
   const [images, setImages] = useState([]);
   const [categories, setCategories] = useState([]);
   const [existingCategories, setExistingCategories] = useState([]);
+  const [estimatedTime, setEstimatedTime] = useState(20); 
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -86,6 +87,7 @@ const restaurantId = localStorage.getItem('resId');
     formData.append('category', selectedCategory);
     formData.append('price', price);
     formData.append('publishDate', publishDate);
+    formData.append('estimated_time', estimatedTime);
     //for multiple image
     images.forEach((img) => {
     formData.append('images', img); 
@@ -251,6 +253,23 @@ const restaurantId = localStorage.getItem('resId');
                   className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:bg-white outline-none transition-all font-bold text-slate-700"
                   required
                 />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">
+                <Clock size={14} className="text-red-500"/> Preparation Time (Minutes)
+              </label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  value={estimatedTime}
+                  onChange={(e) => setEstimatedTime(e.target.value)}
+                  placeholder="e.g. 30"
+                  className="w-full px-5 py-4 bg-slate-50 border-none rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:bg-white outline-none transition-all font-bold text-slate-700"
+                  required
+                />
+                <span className="absolute right-5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">Min</span>
               </div>
             </div>
 
