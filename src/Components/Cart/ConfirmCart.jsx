@@ -1,17 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2'; 
 import {
   FaPlus, FaMinus, FaChevronLeft, FaShoppingBag,
-  FaTrashAlt, FaUtensils, FaStore, FaMotorcycle, FaClock, 
+  FaTrashAlt, FaUtensils, FaStore, FaMotorcycle
 } from 'react-icons/fa';
 import CheckoutBox from './CheckoutBox';
 import OrderSuccess from './OrderSuccess';
 
 const ConfirmCart = () => {
-  const { restaurantSlug } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const [cartItems, setCartItems] = useState([]);
   const [showSuccess, setShowSuccess] = useState(false);
   const [orderData, setOrderData] = useState(null);
@@ -22,14 +20,14 @@ const ConfirmCart = () => {
   
   const cartKey = `global_cart_data`;
 
-  // কার্ট ডাটা লোড করা
+  // ১. কার্ট ডাটা লোড করা
   useEffect(() => {
     const saved = JSON.parse(sessionStorage.getItem(cartKey)) || [];
     setCartItems(saved);
     window.scrollTo(0, 0);
   }, [cartKey]);
 
-  // ডেলিভারি ইনফো ফেচ করা
+  // ২. ডেলিভারি ইনফো ফেচ করা (মাল্টি-ভেন্ডার সাপোর্ট সহ)
   useEffect(() => {
     const fetchDeliveryData = async () => {
       const resIds = [...new Set(cartItems.map(item => item.restaurant_id || item.resId))].filter(Boolean);
@@ -45,19 +43,17 @@ const ConfirmCart = () => {
           const uniqueAreas = [...new Set(data.map(d => d.areaName))];
           setAvailableAreas(uniqueAreas);
         } catch (error) {
-          console.error("Delivery Info Error:", error);
+          console.error("Delivery Info Fetch Error:", error);
         }
       }
     };
     if (cartItems.length > 0) fetchDeliveryData();
   }, [cartItems]);
 
-  // গ্লোবাল স্টোরেজ আপডেট করার ফাংশন
+  // ৩. গ্লোবাল স্টোরেজ সিঙ্ক
   const syncCart = (updatedItems) => {
     setCartItems(updatedItems);
     sessionStorage.setItem(cartKey, JSON.stringify(updatedItems));
-    
-    // 🔥 এই ইভেন্টটি ফায়ার করলে CartContext অটোমেটিক আপডেট হয়ে যাবে
     window.dispatchEvent(new Event('cartUpdate'));
   };
 
@@ -84,14 +80,15 @@ const ConfirmCart = () => {
     }).then((result) => {
       if (result.isConfirmed) {
         const updated = cartItems.filter(item => item.restaurantSlug !== slug);
-        syncCart(updated); // সেশন এবং কনটেক্সট দুইটাই আপডেট হবে
+        syncCart(updated);
       }
     });
   };
 
+  // ৪. ক্যালকুলেশন লজিক
   const getChargeForRestaurant = (resId) => {
     const info = deliveryInfo.find(d => (d.restaurant_id === resId || d.resId === resId) && d.areaName === selectedArea);
-    return info ? info.deliveryCharge : 0;
+    return info ? parseFloat(info.deliveryCharge) : 0;
   };
 
   const totalDeliveryCharge = [...new Set(cartItems.map(item => item.restaurant_id || item.resId))]
@@ -106,38 +103,38 @@ const ConfirmCart = () => {
     return groups;
   }, {});
 
-  const handleOrderSubmit = async (customerData) => {
-    if (selectedArea === 'Select Area') {
-      return Swal.fire('Wait!', 'Please select your delivery area.', 'warning');
-    }
+  // ৫. ফাইনাল অর্ডার সাবমিশন (CheckoutBox থেকে ডাটা গ্রহণ)
+  const handleFinalOrder = async (finalData) => {
     try {
       const response = await fetch('http://localhost:5000/api/place-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerInfo: customerData,
-          cartItems: cartItems,
-          area: selectedArea,
-          method: 'Delivery',
-          extraCharge: totalDeliveryCharge,
-          paymentMethod: 'Cash'
-        })
+        body: JSON.stringify(finalData)
       });
       const result = await response.json();
+      
       if (result.success) {
+        // সেশন ক্লিয়ার এবং ইভেন্ট আপডেট
         sessionStorage.removeItem(cartKey);
-        window.dispatchEvent(new Event('cartUpdate')); // কার্ট খালি করা
-        setOrderData(result);
+        window.dispatchEvent(new Event('cartUpdate'));
+        
+        setOrderData({
+          ...finalData,
+          orderId: result.orderId || Math.floor(100000 + Math.random() * 900000)
+        });
         setShowSuccess(true);
+      } else {
+        Swal.fire('Failed', result.message || 'Order could not be placed', 'error');
       }
     } catch (error) {
-      Swal.fire('Error', 'Order failed', 'error');
+      Swal.fire('Error', 'Order failed to reach server. Check your connection.', 'error');
     }
   };
 
   return (
     <div className="bg-[#fcfdfe] min-h-screen px-4 md:px-10 py-6 md:py-10 font-inter">
       <div className="max-w-[1150px] mx-auto">
+        {/* Top Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
           <button onClick={() => navigate(-1)} className="group flex items-center gap-3 bg-white border border-black/5 px-5 py-2 rounded-full shadow-lg hover:-translate-x-1 transition-all">
             <div className="w-8 h-8 rounded-full bg-[#E3242B] text-white flex items-center justify-center"><FaChevronLeft size={10} /></div>
@@ -150,6 +147,7 @@ const ConfirmCart = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_420px] gap-6 md:gap-10">
+          {/* Left Side: Order Items */}
           <div className="flex flex-col gap-8">
             <div className="flex items-center gap-3 mb-2">
               <FaUtensils className="text-[#be1e2d] text-xl" />
@@ -159,12 +157,14 @@ const ConfirmCart = () => {
             {Object.keys(groupedCart).length > 0 ? Object.keys(groupedCart).map((resSlug) => {
               const resId = groupedCart[resSlug][0].restaurant_id || groupedCart[resSlug][0].resId;
               const resCharge = getChargeForRestaurant(resId);
+              
               return (
                 <div key={resSlug} className="bg-white/50 rounded-[35px] border border-dashed border-gray-200 overflow-hidden shadow-sm">
                   <div className="flex items-center justify-between px-6 py-4 bg-white/30 border-b border-dashed border-gray-200">
                     <div className="flex items-center gap-2 text-[#be1e2d] font-black uppercase italic text-sm"><FaStore size={14} /> {resSlug.replace(/-/g, ' ')}</div>
                     <button onClick={() => handleRemoveRestaurant(resSlug)} className="p-2 text-red-500 hover:bg-red-500 hover:text-white rounded-xl transition-all"><FaTrashAlt size={12} /></button>
                   </div>
+                  
                   <div className="flex flex-col gap-4 p-4">
                     {groupedCart[resSlug].map((item, idx) => (
                       <div key={idx} className="bg-white p-4 rounded-3xl border border-gray-100 flex items-center gap-4 shadow-sm">
@@ -183,10 +183,13 @@ const ConfirmCart = () => {
                       </div>
                     ))}
                   </div>
+
                   <div className="bg-red-50/50 px-6 py-4 flex justify-between border-t border-red-50">
                      <div className="flex items-center gap-2">
                         <FaMotorcycle className="text-[#be1e2d] text-xs" />
-                        <span className="text-xs font-black text-gray-700">Delivery: {selectedArea === 'Select Area' ? 'Wait' : `৳${resCharge}`}</span>
+                        <span className="text-xs font-black text-gray-700">
+                          Delivery: {selectedArea === 'Select Area' ? 'Choose Area' : `৳${resCharge}`}
+                        </span>
                      </div>
                   </div>
                 </div>
@@ -199,6 +202,7 @@ const ConfirmCart = () => {
             )}
           </div>
 
+          {/* Right Side: Checkout Box */}
           <div className="sticky top-6">
             <CheckoutBox
               cartItems={cartItems}
@@ -206,13 +210,23 @@ const ConfirmCart = () => {
               deliveryCharge={totalDeliveryCharge}
               availableAreas={availableAreas} 
               onAreaUpdate={setSelectedArea}
-              onConfirm={handleOrderSubmit}
+              onSuccess={handleFinalOrder}
               onCancel={() => navigate(-1)}
             />
           </div>
         </div>
       </div>
-      {showSuccess && orderData && <OrderSuccess {...orderData} onClose={() => setShowSuccess(false)} />}
+
+      {/* Success Modal */}
+      {showSuccess && orderData && (
+        <OrderSuccess 
+          {...orderData} 
+          onClose={() => { 
+            setShowSuccess(false); 
+            navigate('/'); 
+          }} 
+        />
+      )}
     </div>
   );
 };

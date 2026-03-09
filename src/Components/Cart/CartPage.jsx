@@ -3,16 +3,17 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../../src/context/CartContext'; 
 import { 
   FaShoppingCart, FaPlus, FaPhoneAlt, FaSearch, 
-  FaCommentDots, FaArrowLeft, FaCheck, FaEye, FaTimes, FaArrowDown, FaUtensils  
+  FaArrowLeft, FaCheck, FaTimes, FaChevronDown 
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
 import Swal from 'sweetalert2';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const RestaurantPage = () => {
   const { restaurantSlug } = useParams();
   const navigate = useNavigate();
-  const { addToCart } = useCart(); // cart variable removed from here to use local sync
+  const { addToCart } = useCart();
 
   // --- States ---
   const [menuData, setMenuData] = useState({}); 
@@ -25,28 +26,20 @@ const RestaurantPage = () => {
   const [tickedId, setTickedId] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [isCartBouncing, setIsCartBouncing] = useState(false);
-  
-  // কার্ট নাম্বার লাইভ আপডেট করার জন্য লোকাল স্টেট
   const [localCartCount, setLocalCartCount] = useState(0);
 
-  const sidebarRef = useRef(null);
   const cartKey = `global_cart_data`;
 
-  // --- Cart Sync Logic (FIXED) ---
-  // এই ইফেক্টটি চেক করবে সেশনে কোনো পরিবর্তন হয়েছে কি না
+  // --- Cart Sync ---
   useEffect(() => {
     const syncCartCount = () => {
       const savedCart = JSON.parse(sessionStorage.getItem(cartKey)) || [];
       const total = savedCart.reduce((sum, item) => sum + (item.quantity || 0), 0);
       setLocalCartCount(total);
     };
-
-    syncCartCount(); // Initial load
-
-    // পেজ ফোকাস হলে বা স্টোরেজ চেঞ্জ হলে আপডেট হবে
+    syncCartCount();
     window.addEventListener('storage', syncCartCount);
     window.addEventListener('focus', syncCartCount);
-
     return () => {
       window.removeEventListener('storage', syncCartCount);
       window.removeEventListener('focus', syncCartCount);
@@ -66,13 +59,13 @@ const RestaurantPage = () => {
       } catch (err) {
         setError(err.response?.data?.message || "Restaurant not found or server error");
       } finally {
-        setLoading(false);
+        setTimeout(() => setLoading(false), 800); // Smooth transition for loader
       }
     };
     fetchFullData();
   }, [restaurantSlug]);
 
-  // --- Filter Logic ---
+  // --- Logic Helpers ---
   const categories = useMemo(() => ['All', ...Object.keys(menuData)], [menuData]);
 
   const allProducts = useMemo(() => {
@@ -84,12 +77,11 @@ const RestaurantPage = () => {
   const filteredProducts = useMemo(() => {
     let prods = activeCategory === 'All' ? allProducts : (menuData[activeCategory] || []);
     if (searchTerm) {
-      prods = allProducts.filter(p => p.display_name.toLowerCase().includes(searchTerm.toLowerCase()));
+      prods = prods.filter(p => p.display_name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     return prods;
   }, [menuData, activeCategory, searchTerm, allProducts]);
 
-  // --- Add To Cart Logic ---
   const handleAddToCart = async (product) => {
     const cartItem = {
       id: product.id,
@@ -97,7 +89,7 @@ const RestaurantPage = () => {
       price: product.display_price,
       img: product.images[0] || "https://via.placeholder.com/150",
       restaurant_id: profile.id,
-      restaurantSlug: restaurantSlug // নিশ্চিত করুন স্লাগটি যাচ্ছে
+      restaurantSlug: restaurantSlug
     };
 
     const result = await addToCart(cartItem, restaurantSlug);
@@ -105,8 +97,6 @@ const RestaurantPage = () => {
     if (result && result.status === 'success') {
       setTickedId(product.id);
       setIsCartBouncing(true);
-      
-      // লোকাল কাউন্ট সাথে সাথে বাড়ানো
       setLocalCartCount(prev => prev + 1);
 
       Swal.fire({
@@ -127,7 +117,13 @@ const RestaurantPage = () => {
     }
   };
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-bold text-xl animate-pulse">🍱 Loading Delicious Menu...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-white flex flex-col items-center justify-center gap-4">
+      <div className="w-16 h-16 border-4 border-slate-100 border-t-rose-600 rounded-full animate-spin"></div>
+      <p className="font-black text-slate-900 tracking-tighter italic uppercase">Preparing Delicious Menu...</p>
+    </div>
+  );
+
   if (error) return <div className="min-h-screen flex items-center justify-center text-red-500 font-bold px-10 text-center uppercase tracking-widest">{error}</div>;
 
   return (
@@ -149,7 +145,7 @@ const RestaurantPage = () => {
         </button>
         <div className="absolute bottom-12 left-5 right-5 md:left-20 z-20">
           <div className="flex items-center gap-4 md:gap-8 glass-morphism p-4 md:p-6 rounded-[35px] md:rounded-[45px] shadow-2xl w-full max-w-3xl">
-             <div className="w-20 h-20 md:w-32 md:h-32 bg-white rounded-[25px] flex items-center justify-center p-2 shadow-inner">
+             <div className="w-20 h-20 md:w-32 md:h-32 bg-white rounded-[25px] flex items-center justify-center p-2 shadow-inner overflow-hidden">
                 <img src={profile.logo} className="w-full h-full object-contain" alt="logo" />
              </div>
              <div className="flex-1">
@@ -168,48 +164,108 @@ const RestaurantPage = () => {
         <div className="bg-white shadow-2xl rounded-[35px] md:rounded-[55px] p-3 flex flex-col xl:flex-row gap-4 border border-white">
           <div className="flex-1 flex items-center px-6 h-16 md:h-20 bg-slate-50 rounded-[30px] md:rounded-[45px]">
             <FaSearch className="text-slate-300 mr-4" size={20} />
-            <input type="text" placeholder="Search dishes..." className="w-full bg-transparent outline-none font-bold text-lg text-slate-800" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <input 
+              type="text" 
+              placeholder="Search dishes..." 
+              className="w-full bg-transparent outline-none font-bold text-lg text-slate-800" 
+              value={searchTerm} 
+              onChange={(e) => setSearchTerm(e.target.value)} 
+            />
           </div>
           <div className="flex gap-3">
-            <a href={`tel:${profile.contact_mobile}`} className="flex-1 xl:w-56 bg-gradient-to-r from-rose-600 to-orange-500 text-white rounded-[30px] md:rounded-[45px] font-black text-sm flex items-center justify-center gap-3 px-8 h-16 md:h-20 shadow-lg shadow-rose-200"><FaPhoneAlt /> <span>ORDER NOW</span></a>
+            <a href={`tel:${profile.contact_mobile}`} className="flex-1 xl:w-56 bg-gradient-to-r from-rose-600 to-orange-500 text-white rounded-[30px] md:rounded-[45px] font-black text-sm flex items-center justify-center gap-3 px-8 h-16 md:h-20 shadow-lg shadow-rose-200">
+              <FaPhoneAlt /> <span>ORDER NOW</span>
+            </a>
           </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 mt-12 items-start">
           {/* Sidebar */}
           <div className="w-full lg:w-80 lg:sticky lg:top-28 z-40">
-            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-50 p-6">
+            <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-50 p-6 overflow-hidden">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2">Categories</h3>
               <div className="flex lg:flex-col gap-2 overflow-x-auto hide-scrollbar">
                 {categories.map((cat) => (
-                  <button key={cat} onClick={() => {setActiveCategory(cat); setVisibleCount(6);}} className={`flex-shrink-0 px-6 py-4 rounded-2xl font-black text-[11px] uppercase transition-all duration-300 flex items-center justify-between ${activeCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}>
+                  <button 
+                    key={cat} 
+                    onClick={() => {
+                      setActiveCategory(cat); 
+                      setVisibleCount(6);
+                    }} 
+                    className={`flex-shrink-0 px-6 py-4 rounded-2xl font-black text-[11px] uppercase transition-all duration-300 flex items-center justify-between ${activeCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                  >
                     <span>{cat}</span>
-                    {activeCategory === cat && <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
+                    {activeCategory === cat && <motion.div layoutId="dot" className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
                   </button>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Product Grid */}
-          <div className="flex-1 w-full">
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
-              {filteredProducts.slice(0, visibleCount).map((product) => (
-                <div key={product.id} className="bg-white rounded-[40px] p-4 shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 group cursor-pointer" onClick={() => setSelectedProduct(product)}>
-                  <div className="aspect-square relative overflow-hidden rounded-[30px] bg-slate-100">
-                    <img src={product.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={product.display_name} />
-                    <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all ${tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
-                      {tickedId === product.id ? <FaCheck /> : <FaPlus />}
-                    </button>
-                  </div>
-                  <div className="mt-5 px-2">
-                    <h4 className="text-xl font-black text-slate-800 italic truncate">{product.display_name}</h4>
-                    <div className="flex items-end gap-3 mt-4">
-                      <span className="text-2xl font-black text-slate-950 italic">৳{product.display_price}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
+          {/* Product Grid Area */}
+          <div className="flex-1 w-full min-h-[600px]">
+            <div className="flex items-center justify-between mb-8 px-2">
+              <h2 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter">
+                {activeCategory} <span className="text-rose-600">Items</span>
+              </h2>
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">{filteredProducts.length} Total</p>
             </div>
+
+            <motion.div 
+              layout
+              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8"
+            >
+              <AnimatePresence mode='popLayout'>
+                {filteredProducts.slice(0, visibleCount).map((product) => (
+                  <motion.div 
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    key={product.id} 
+                    className="bg-white rounded-[40px] p-4 shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 group cursor-pointer" 
+                    onClick={() => setSelectedProduct(product)}
+                  >
+                    <div className="aspect-square relative overflow-hidden rounded-[30px] bg-slate-100">
+                      <img src={product.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={product.display_name} />
+                      <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all ${tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
+                        {tickedId === product.id ? <FaCheck /> : <FaPlus />}
+                      </button>
+                    </div>
+                    <div className="mt-5 px-2">
+                      <h4 className="text-xl font-black text-slate-800 italic truncate">{product.display_name}</h4>
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-2xl font-black text-slate-950 italic">৳{product.display_price}</span>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">{product.category}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </motion.div>
+
+            {/* See More Button */}
+            {visibleCount < filteredProducts.length && (
+              <div className="mt-16 flex justify-center">
+                <button 
+                  onClick={() => setVisibleCount(prev => prev + 6)}
+                  className="flex items-center gap-3 bg-white border-2 border-slate-900 px-10 py-5 rounded-3xl font-black text-xs uppercase tracking-[0.2em] hover:bg-slate-900 hover:text-white transition-all shadow-xl active:scale-95 group"
+                >
+                  <FaChevronDown className="group-hover:translate-y-1 transition-transform" /> 
+                  Load More Dishes
+                </button>
+              </div>
+            )}
+
+            {filteredProducts.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 bg-white rounded-[40px] border-2 border-dashed border-slate-100">
+                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                  <FaSearch className="text-slate-200" size={30} />
+                </div>
+                <h3 className="text-xl font-black text-slate-900 italic uppercase">No items found</h3>
+                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mt-2">Try a different search or category</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -231,19 +287,48 @@ const RestaurantPage = () => {
       )}
 
       {/* Product Detail Modal */}
-      {selectedProduct && (
-        <div className="fixed inset-0 z-[6000] flex items-end md:items-center justify-center p-0 md:p-6 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white rounded-t-[40px] md:rounded-[50px] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative shadow-2xl">
-            <button onClick={() => setSelectedProduct(null)} className="absolute top-6 right-6 z-[70] bg-slate-100 p-4 rounded-2xl"><FaTimes size={20}/></button>
-            <div className="w-full md:w-1/2 h-80 md:h-auto"><img src={selectedProduct.images[0]} className="w-full h-full object-cover" alt="detail" /></div>
-            <div className="p-10 md:p-16 flex-1">
-              <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic mb-6">{selectedProduct.display_name}</h2>
-              <div className="flex items-center gap-4 mb-10"><span className="text-5xl font-black italic">৳{selectedProduct.display_price}</span></div>
-              <button onClick={() => { handleAddToCart(selectedProduct); setSelectedProduct(null); }} className="w-full bg-slate-900 text-white py-6 rounded-3xl font-black text-xl">ADD TO BASKET</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {selectedProduct && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[6000] flex items-end md:items-center justify-center p-0 md:p-6 bg-slate-950/80 backdrop-blur-md"
+          >
+            <motion.div 
+              initial={{ y: 100, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 100, opacity: 0 }}
+              className="bg-white rounded-t-[40px] md:rounded-[50px] overflow-hidden max-w-5xl w-full flex flex-col md:flex-row relative shadow-2xl"
+            >
+              <button onClick={() => setSelectedProduct(null)} className="absolute top-6 right-6 z-[70] bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-lg hover:bg-rose-600 hover:text-white transition-all">
+                <FaTimes size={20}/>
+              </button>
+              <div className="w-full md:w-1/2 h-80 md:h-[600px]">
+                <img src={selectedProduct.images[0]} className="w-full h-full object-cover" alt="detail" />
+              </div>
+              <div className="p-10 md:p-16 flex-1 flex flex-col justify-center">
+                <span className="text-orange-500 font-black text-xs uppercase tracking-widest mb-4 bg-orange-50 px-4 py-2 rounded-full w-fit">
+                  {selectedProduct.category}
+                </span>
+                <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic mb-6 leading-tight uppercase tracking-tighter">
+                  {selectedProduct.display_name}
+                </h2>
+                <div className="flex items-center gap-4 mb-10">
+                  <span className="text-5xl font-black italic text-slate-950 tracking-tighter">৳{selectedProduct.display_price}</span>
+                  {selectedProduct.quantity && <span className="text-slate-400 font-bold text-lg">/ {selectedProduct.quantity}</span>}
+                </div>
+                <button 
+                  onClick={() => { handleAddToCart(selectedProduct); setSelectedProduct(null); }} 
+                  className="w-full bg-slate-900 text-white py-6 rounded-3xl font-black text-xl hover:bg-rose-600 transition-colors shadow-2xl shadow-slate-200"
+                >
+                  ADD TO BASKET
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
