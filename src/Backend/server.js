@@ -1191,6 +1191,78 @@ app.get('/api/get-tables/:restaurantId', async (req, res) => {
     }
 });*/
 
+//Add Table 
+app.post('/api/add-table', async (req, res) => {
+    const { restaurant_id, table_number, category, capacity } = req.body;
+
+    // ভ্যালিডেশন
+    if (!restaurant_id || !table_number || !category || !capacity) {
+        return res.status(400).json({ message: "All fields are required!" });
+    }
+
+    const query = `INSERT INTO restaurant_tables (restaurant_id, table_number, category, capacity, is_available) VALUES (?, ?, ?, ?, 1)`;
+
+    try {
+        db.query(query, [restaurant_id, table_number, category, capacity], (err, result) => {
+            if (err) {
+                console.error("Database Error:", err);
+                return res.status(500).json({ message: "Database error occurred!" });
+            }
+            res.status(201).json({ 
+                success: true, 
+                message: "Table added successfully!", 
+                tableId: result.insertId 
+            });
+        });
+    } catch (error) {
+        res.status(500).json({ message: "Server error!" });
+    }
+});
+
+//Table Booking
+// টেবিল লিস্ট এবং রানিং কাস্টমার ডাটা পাওয়ার এপিআই
+app.get('/api/tables/:resId', (req, res) => {
+    const { resId } = req.params;
+
+    // আমরা COLLATE ব্যবহার করে দুই পাশকেই utf8mb4_general_ci তে ফোর্স করছি
+    const sql = `
+        SELECT 
+            t.id, 
+            t.table_number, 
+            t.category, 
+            t.capacity, 
+            t.is_available,
+            (SELECT customer_name FROM orders 
+             WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
+             AND order_status IN ('pending', 'confirmed', 'cooking') 
+             LIMIT 1) as customer_name,
+            (SELECT customer_phone FROM orders 
+             WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
+             AND order_status IN ('pending', 'confirmed', 'cooking') 
+             LIMIT 1) as customer_phone
+        FROM restaurant_tables t
+        WHERE t.restaurant_id = ?
+        ORDER BY t.table_number ASC`;
+
+    db.query(sql, [resId], (err, results) => {
+        if (err) {
+            console.error("Database Error:", err);
+            return res.status(500).json({ success: false, error: err.message });
+        }
+        res.json(results);
+    });
+});
+
+// ম্যানুয়ালি টেবিল স্ট্যাটাস আপডেট করার এপিআই (Book/Open)
+app.put('/api/update-table-status', (req, res) => {
+    const { tableId, is_available } = req.body;
+    const sql = "UPDATE restaurant_tables SET is_available = ? WHERE id = ?";
+    db.query(sql, [is_available, tableId], (err, result) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true });
+    });
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);

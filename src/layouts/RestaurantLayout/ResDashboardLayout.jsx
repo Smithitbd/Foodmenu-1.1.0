@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Store, MapPin, PlusCircle, Utensils, 
   ShoppingCart, CheckCircle, BarChart3, Gift, UserCircle, 
   Menu, X, ChevronDown, Settings, LogOut, 
-  Edit, List, Plus, FileText, PieChart
+  Edit, List, Plus, FileText, PieChart, Armchair // Armchair আইকনটি টেবিল ম্যানেজমেন্টের জন্য যোগ করা হয়েছে
 } from 'lucide-react';
 import logoImg from '../../assets/foodmenu.png'; 
 import Footer from '../../../src/Components/Shared/Restaurant/RestaurantFooter'
@@ -19,6 +19,7 @@ const DashboardLayout = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isOrderOpen, setIsOrderOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isTableOpen, setIsTableOpen] = useState(false); // নতুন স্টেট টেবিল ড্রপডাউনের জন্য
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -126,7 +127,7 @@ const DashboardLayout = () => {
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Menu Category</span></div>}
           </Link>
 
-          {/* 6. --- Dropdown: Menu --- */}
+          {/* 5. --- Dropdown: Menu --- */}
           <div className="py-1">
             <button
               onClick={() => isSidebarOpen && setIsMenuOpen(!isMenuOpen)}
@@ -153,7 +154,7 @@ const DashboardLayout = () => {
             )}
           </div>
 
-          {/* 7. Cart List */}
+          {/* 6. Cart List */}
           <Link 
             to="/restaurantadmin/cart" 
             title={!isSidebarOpen ? "Cart List" : ""}
@@ -163,7 +164,7 @@ const DashboardLayout = () => {
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Cart List</span></div>}
           </Link>
 
-          {/* 8. Available Food */}
+          {/* 7. Available Food */}
           <Link 
             to="/restaurantadmin/available" 
             title={!isSidebarOpen ? "Available Food" : ""}
@@ -172,6 +173,33 @@ const DashboardLayout = () => {
             <span className={`${location.pathname === '/restaurantadmin/available' ? 'text-white' : 'text-gray-400 group-hover:text-red-500'}`}><CheckCircle size={20} /></span>
             {isSidebarOpen && <div className="flex items-center justify-between flex-1 ml-4"><span className="text-[13px] font-bold tracking-tight uppercase italic">Available Food</span></div>}
           </Link>
+
+          {/* NEW: 8. --- Dropdown: Table Management --- */}
+          <div className="py-1">
+            <button
+              onClick={() => isSidebarOpen && setIsTableOpen(!isTableOpen)}
+              title={!isSidebarOpen ? "Table Management" : ""}
+              className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/restaurantadmin/table') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}
+            >
+              <Armchair size={20} className={location.pathname.includes('/restaurantadmin/table') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
+              {isSidebarOpen && (
+                <div className="flex items-center justify-between flex-1 ml-4">
+                  <span className="text-[13px] font-bold tracking-tight uppercase italic text-left">Table Management</span>
+                  <ChevronDown size={14} className={`transition-transform duration-300 ${isTableOpen ? 'rotate-180 text-red-500' : 'opacity-50'}`} />
+                </div>
+              )}
+            </button>
+            {isSidebarOpen && isTableOpen && (
+              <div className="mt-2 ml-4 space-y-1 border-l border-gray-700 animate-in slide-in-from-top-2">
+                <Link to="/restaurantadmin/add-table" className="flex items-center gap-3 px-6 py-2 text-[11px] font-black uppercase text-gray-500 hover:text-red-500 transition-colors italic tracking-widest">
+                  <Plus size={14} /> Add Table
+                </Link>
+                <Link to="/restaurantadmin/table-list" className="flex items-center gap-3 px-6 py-2 text-[11px] font-bold uppercase text-gray-400 hover:text-white transition-colors tracking-tighter italic">
+                  <List size={14} /> Table List
+                </Link>
+              </div>
+            )}
+          </div>
 
           {/* 9. --- Dropdown: Order Food --- */}
           <div className="py-1">
