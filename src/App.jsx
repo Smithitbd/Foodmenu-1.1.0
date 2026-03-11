@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Context Providers
 import { FormProvider } from "./context/FormContext.jsx"; 
-import { CartProvider, useCart } from "./context/CartContext.jsx"; 
+import { CartProvider } from "./context/CartContext.jsx"; 
 
 // Layout & Static Components
 import MainLayout from './layouts/MainLayout/MainLayout.jsx';
@@ -75,7 +75,6 @@ const AdminAreaPage = lazy(() => import("./Components/Arealist/AreaPage.jsx"));
 const ProtectedRoute = ({ children }) => {
   const resId = localStorage.getItem('resId');
   if (!resId) {
-    // যদি লগইন না থাকে, তবে লগইন পেজে পাঠিয়ে দেবে
     return <Navigate to="/restaurant-login" replace />;
   }
   return children;
@@ -106,6 +105,13 @@ const AppContent = () => {
       }
     }
   }, [location.pathname]);
+
+  // 🛡️ CONDITIONS TO HIDE ORDER TRACKER
+  const isUserPage = 
+    !location.pathname.startsWith('/admin') && 
+    !location.pathname.startsWith('/restaurantadmin') &&
+    !location.pathname.includes('login') && 
+    !location.pathname.includes('superadminlogin');
 
   return (
     <div className="App min-h-screen">
@@ -168,7 +174,6 @@ const AppContent = () => {
                 <Route path="offers" element={<PageWrapper><ResOffers /></PageWrapper>} />
                 <Route path="registration" element={<PageWrapper><ResRegistration /></PageWrapper>} />
                 
-                {/* Dropdown pages */}
                 <Route path="graph-report" element={<PageWrapper><GraphReport /></PageWrapper>} />
                 <Route path="table-report" element={<PageWrapper><TableReport /></PageWrapper>} />
                 <Route path="create-Order-List" element={<PageWrapper><CreateOrder /></PageWrapper>} />
@@ -185,7 +190,9 @@ const AppContent = () => {
           </AnimatePresence>
         </Suspense>
       </FormProvider>
-      <OrderTracker /> 
+
+      {/* 🚀 FIXED TRACKER POSITIONING */}
+      
     </div>
   );
 }

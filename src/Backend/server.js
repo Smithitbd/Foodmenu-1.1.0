@@ -488,7 +488,7 @@ app.get('/api/restaurant-locations', async (req, res) => {
 });
 
 // --- DASHBOARD STATS ---
-app.get('/api/dashboard-stats/:resId', async (req, res) => { // নাম পরিবর্তন করে ফ্রন্টএন্ডের সাথে মিলানো হলো
+app.get('/api/dashboard-stats/:resId', async (req, res) => { 
     try {
         const { resId } = req.params;
         const [resInfo] = await db.query("SELECT restaurant_name, status FROM restaurants WHERE id = ?", [resId]);
@@ -1220,26 +1220,61 @@ app.post('/api/add-table', async (req, res) => {
 });
 
 //Table Booking
-// টেবিল লিস্ট এবং রানিং কাস্টমার ডাটা পাওয়ার এপিআই
-app.get('/api/tables/:resId', (req, res) => {
+app.get('/api/tables/:resId', async (req, res) => {
     const { resId } = req.params;
 
-    // আমরা COLLATE ব্যবহার করে দুই পাশকেই utf8mb4_general_ci তে ফোর্স করছি
+    const sql = `
+        SELECT t.*, 
+        (SELECT customer_name FROM orders 
+         WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
+         AND order_status IN ('pending', 'confirmed', 'cooking') 
+         LIMIT 1) as customer_name,
+        (SELECT customer_phone FROM orders 
+         WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
+         AND order_status IN ('pending', 'confirmed', 'cooking') 
+         LIMIT 1) as customer_phone
+        FROM restaurant_tables t
+        WHERE t.restaurant_id = ?
+        ORDER BY t.table_number ASC`;
+
+    try {
+        const [results] = await db.query(sql, [resId]);
+        res.json(results);
+    } catch (err) {
+        console.error("Database Error:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+//For automatic
+/*app.get('/api/tables/:resId', (req, res) => {
+    const { resId } = req.params;
+
+    // এই কুয়েরিটি অটোমেটিক চেক করবে অর্ডারের অবস্থা
     const sql = `
         SELECT 
             t.id, 
             t.table_number, 
             t.category, 
-            t.capacity, 
-            t.is_available,
+            t.capacity,
+            -- যদি ওই টেবিলের কোনো অর্ডার লাইভ থাকে, তবে 0 (Booked), নাহলে 1 (Available)
+            CASE 
+                WHEN EXISTS (
+                    SELECT 1 FROM orders 
+                    WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
+                    AND order_status IN ('pending', 'confirmed', 'cooking')
+                ) THEN 0 
+                ELSE 1 
+            END AS is_available,
+            -- কাস্টমারের নাম নিয়ে আসা
             (SELECT customer_name FROM orders 
              WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
              AND order_status IN ('pending', 'confirmed', 'cooking') 
-             LIMIT 1) as customer_name,
+             ORDER BY id DESC LIMIT 1) as customer_name,
+            -- কাস্টমারের ফোন নিয়ে আসা
             (SELECT customer_phone FROM orders 
              WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
              AND order_status IN ('pending', 'confirmed', 'cooking') 
-             LIMIT 1) as customer_phone
+             ORDER BY id DESC LIMIT 1) as customer_phone
         FROM restaurant_tables t
         WHERE t.restaurant_id = ?
         ORDER BY t.table_number ASC`;
@@ -1251,7 +1286,7 @@ app.get('/api/tables/:resId', (req, res) => {
         }
         res.json(results);
     });
-});
+});*/
 
 // ম্যানুয়ালি টেবিল স্ট্যাটাস আপডেট করার এপিআই (Book/Open)
 app.put('/api/update-table-status', (req, res) => {
