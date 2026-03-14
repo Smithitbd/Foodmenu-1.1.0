@@ -18,9 +18,7 @@ const Header = () => {
   useEffect(() => {
     const fetchRestaurants = async () => {
       try {
-        // আপনার ব্যাকএন্ড পোর্ট যদি ৫০০১ হয় তবে সেটি পরিবর্তন করে নিন
         const response = await axios.get('http://localhost:5000/api/all-restaurants-list'); 
-        // আপনার এপিআই রেসপন্স { restaurants: [...] } ফরম্যাটে আসছে, তাই .restaurants নেওয়া হয়েছে
         setRestaurants(response.data.restaurants || []);
       } catch (error) {
         console.error("Error fetching restaurants:", error);
@@ -32,7 +30,6 @@ const Header = () => {
     fetchRestaurants();
   }, []);
 
-  // সার্চ ফিল্টারিং লজিক (r_name এবং address দিয়ে সার্চ হবে)
   const filtered = Array.isArray(restaurants) 
     ? (query.trim() === "" 
         ? restaurants.slice(0, 6) 
@@ -42,7 +39,6 @@ const Header = () => {
           ))
     : [];
 
-  // টাইপিং এনিমেশন
   useEffect(() => {
     let index = 0; let forward = true;
     const typeText = "Find your favorite food...";
@@ -60,7 +56,6 @@ const Header = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // ক্লিক আউটসাইড ক্লোজ
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (searchRef.current && !searchRef.current.contains(e.target)) setShowSuggestions(false);
@@ -148,7 +143,7 @@ const Header = () => {
                   >
                     <div className="max-h-[350px] overflow-y-auto py-3 no-scrollbar scroll-smooth">
                       {loading ? (
-                         <div className="p-10 text-center animate-pulse text-red-500 font-bold">Loading restaurants...</div>
+                        <div className="p-10 text-center animate-pulse text-red-500 font-bold">Loading restaurants...</div>
                       ) : filtered.length > 0 ? (
                         filtered.map((r) => (
                           <SuggestionItem key={r.id} restaurant={r} close={() => setShowSuggestions(false)} />

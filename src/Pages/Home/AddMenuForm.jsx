@@ -16,10 +16,24 @@ const AddMenuForm = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const { formData, updateFormData, isVerified, setIsVerified } = useFormContext();
-
+  const [areas, setAreas] = useState([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState("");
   const [scanProgress, setScanProgress] = useState(0);
+
+  // Area List 
+  useEffect(() => {
+    const fetchAreas = async () => {
+      try {
+        const res = await axios.get('http://localhost:5000/api/areas'); 
+        setAreas(res.data);
+      } catch (err) {
+        console.error("Area load error:", err);
+      }
+    };
+    fetchAreas();    
+    setIsVerified(true); 
+  }, [setIsVerified]);
 
   useEffect(() => {
     // OCR কমেন্ট করা থাকলেও Initial state true করে দিচ্ছি যেন Step 3 তে বাধা না দেয়
@@ -43,7 +57,9 @@ const AddMenuForm = () => {
     data.append('owner_email', formData.email);
     data.append('owner_password', formData.password);
     data.append('restaurant_name', formData.restaurantName);
+    data.append('restaurant_category', formData.category);
     data.append('slug', slug);
+    data.append('area_id', formData.area_id);
     data.append('location', formData.ownerAddress);
     
     if (formData.logo) data.append('logo', formData.logo);
@@ -183,8 +199,20 @@ const AddMenuForm = () => {
                   <h2 className="text-2xl font-black text-slate-900">Identity Details</h2>
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Restaurant Name *" icon={<FaStore/>} value={formData.restaurantName} onChange={(v)=>handleInputChange('restaurantName', v)} />
-                    <Input label="Opening Date" icon={<FaCalendarAlt/>} type="date" value={formData.openingDate} onChange={(v)=>handleInputChange('openingDate', v)} />
+                    {/* AREA DROPDOWN ADDED HERE */}
+                    <div className="space-y-1">
+                      <label className="text-[9px] font-black text-slate-400 uppercase ml-1">Select Area *</label>
+                      <select 
+                        value={formData.area_id} 
+                        onChange={(e)=>handleInputChange('area_id', e.target.value)} 
+                        className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent focus:border-red-100 rounded-2xl outline-none text-xs font-bold cursor-pointer transition-all"
+                      >
+                        <option value="">Select Restaurant Area</option>
+                        {areas.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
+                      </select>
+                    </div>
                   </div>
+                  <Input label="Opening Date" icon={<FaCalendarAlt/>} type="date" value={formData.openingDate} onChange={(v)=>handleInputChange('openingDate', v)} />
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Owner Name *" icon={<FaUser/>} value={formData.ownerName} onChange={(v)=>handleInputChange('ownerName', v)} />
                     <Input label="Owner Contact *" icon={<FaPhone/>} value={formData.ownerContact} onChange={(v)=>handleInputChange('ownerContact', v)} />

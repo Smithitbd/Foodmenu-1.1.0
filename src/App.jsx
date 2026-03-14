@@ -19,6 +19,8 @@ import NotFound from './Pages/NotFound.jsx';
 
 // CSS
 import './App.css';
+import AboutUs from "./Pages/Home/AboutUs.jsx";
+import ContactUs from "./Pages/Home/ContactUs.jsx";
 
 // --- Lazy Loading ---
 const Home = lazy(() => import('./Pages/Home/Home.jsx'));
@@ -137,6 +139,8 @@ const AppContent = () => {
                 <Route path="/cart/:restaurantSlug/ConfirmCart/CheckoutBox" element={<PageWrapper><CheckoutBox /></PageWrapper>} />
                 <Route path="/cart/:restaurantSlug/ConfirmCart/CheckoutBox/OrderSuccess" element={<PageWrapper><OrderSuccess /></PageWrapper>} />
                 <Route path="/templates" element={<PageWrapper><TemplatePage /></PageWrapper>} />
+                <Route path = "/about" element ={<PageWrapper><AboutUs /></PageWrapper>} />
+                <Route path = "/contact" element ={<PageWrapper><ContactUs /></PageWrapper>} />
               </Route>
 
               {/* --- 3. Super Admin Routes (Protected) --- */}

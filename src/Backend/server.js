@@ -55,6 +55,16 @@ app.get('/', (req, res) => {
     res.send('Foodmenu backend server is running bruh.....!');
 });
 
+// Area List
+app.get('/api/areas', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT id, name FROM area ORDER BY name ASC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- RESTAURANT APIS ---
 app.get('/api/restaurants', async (req, res) => {
     try {
@@ -73,7 +83,7 @@ app.post('/api/register-restaurant', upload.fields([
 ]), async (req, res) => {
     try {
         
-        const { owner_name, owner_email, owner_password, restaurant_name, slug, location, restaurant_category } = req.body;
+        const { owner_name, owner_email, owner_password, restaurant_name,restaurant_category, slug, location, area_id } = req.body;
         
         const files = req.files || {};
         let logoFileName = null;
@@ -109,9 +119,20 @@ app.post('/api/register-restaurant', upload.fields([
         const hashedPassword = await bcrypt.hash(owner_password, saltRounds);
 
         // SQL কুয়েরিতে restaurant_category কলামটি যোগ করা হয়েছে
-        const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, logo, nid_doc, location, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, logo, nid_doc, location, area_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
-        await db.query(sql, [owner_name, owner_email, hashedPassword, restaurant_name, restaurant_category || 'Others', slug, logoFileName, nidFileName, location, 'inactive']);
+        await db.query(sql, [
+            owner_name,
+            owner_email, 
+            hashedPassword, 
+            restaurant_name, 
+            restaurant_category || 'Others', 
+            slug, 
+            logoFileName, 
+            nidFileName, 
+            location,
+            area_id, 
+            'inactive']);
         
         res.status(201).json({ message: "Registration Successful!" });
     } catch (error) {
@@ -147,14 +168,27 @@ app.post('/api/login', async (req, res) => {
 
 app.get('/api/all-restaurants-list', async (req, res) => {
     try {
-        // only active status restaurant
-        const sql = "SELECT id, restaurant_name, location, logo, slug, status FROM restaurants WHERE status = 'active'";
+        // SQL JOIN ব্যবহার করা হয়েছে যাতে area টেবিল থেকে নাম আনা যায়
+        const sql = `
+            SELECT 
+                r.id, 
+                r.restaurant_name, 
+                r.logo, 
+                r.slug, 
+                r.status, 
+                a.name AS area_name 
+            FROM restaurants r
+            LEFT JOIN area a ON r.area_id = a.id 
+            WHERE r.status = 'active'
+        `;
+        
         const [results] = await db.query(sql);
 
         const formattedRestaurants = results.map(row => ({
             id: row.id,
             r_name: row.restaurant_name, 
-            address: row.location,      
+            // যদি area_id না থাকে বা ভুল থাকে, তবে "Unknown Area" দেখাবে
+            address: row.area_name || "Unknown Area", 
             pimage: row.logo ? `http://localhost:5000/uploads/${row.logo}` : 'https://via.placeholder.com/300', 
             slug: row.slug,
             ratings: "4.8" 
@@ -162,7 +196,7 @@ app.get('/api/all-restaurants-list', async (req, res) => {
 
         res.json({ restaurants: formattedRestaurants });
     } catch (err) {
-        console.error(err);
+        console.error("Database Error:", err);
         res.status(500).json({ error: "Internal Server Error" });
     }
 });
