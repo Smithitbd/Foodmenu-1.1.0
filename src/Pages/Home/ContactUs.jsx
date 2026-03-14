@@ -1,26 +1,62 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 import { motion } from 'framer-motion';
 import { 
-  FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaChevronRight, 
-  FaFacebookF, FaInstagram, FaLinkedinIn, FaWhatsapp, FaYoutube, FaPaperPlane 
+  FaPhoneAlt, FaEnvelope, FaMapMarkerAlt, FaFacebookF, 
+  FaInstagram, FaLinkedinIn, FaWhatsapp, FaYoutube, FaPaperPlane 
 } from 'react-icons/fa';
 import Swal from 'sweetalert2';
 
 const ContactUs = () => {
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate(); 
+  
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: 'General Inquiry',
+    message: ''
+  });
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setTimeout(() => {
+
+    try {
+      const response = await fetch('http://localhost:5000/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setLoading(false);
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Message Sent!',
+          text: 'Your message has been saved. Redirecting to home...',
+          confirmButtonColor: '#EF4444',
+          timer: 20, 
+          timerProgressBar: true,
+        }).then(() => {
+          navigate('/'); 
+        });
+
+      } else {
+        throw new Error(data.message || 'Something went wrong');
+      }
+    } catch (error) {
       setLoading(false);
       Swal.fire({
-        icon: 'success',
-        title: 'Message Sent!',
-        text: 'We will get back to you within 24 hours.',
-        confirmButtonColor: '#EF4444',
+        icon: 'error',
+        title: 'Submission Failed',
+        text: 'Could not connect to the server. Please try again later.',
+        confirmButtonColor: '#0A0F1D',
       });
-    }, 1500);
+    }
   };
 
   const fadeUp = {
@@ -62,12 +98,12 @@ const ContactUs = () => {
         <div className="container mx-auto px-6">
           <div className="grid lg:grid-cols-3 gap-8">
             
-            {/* Left: Contact Info Cards */}
+            {/* Left Cards */}
             <div className="lg:col-span-1 space-y-4">
               {[
                 { icon: <FaPhoneAlt />, label: 'Call Us', val: '+880 1764 561996', color: 'bg-blue-50 text-blue-600' },
                 { icon: <FaEnvelope />, label: 'Email Us', val: 'info@smithitbd.com', color: 'bg-red-50 text-red-600' },
-                { icon: <FaMapMarkerAlt />, label: 'Our Office', val: 'Rashid Building,  Bondorbazer, Sylhet 3100', color: 'bg-green-50 text-green-600' },
+                { icon: <FaMapMarkerAlt />, label: 'Our Office', val: 'Rashid Building, Bondorbazer, Sylhet 3100', color: 'bg-green-50 text-green-600' },
               ].map((item, i) => (
                 <motion.div 
                   key={i}
@@ -79,38 +115,34 @@ const ContactUs = () => {
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">{item.label}</p>
-                    <h4 className="text-slate-900 font-bold">{item.val}</h4>
+                    <h4 className="text-slate-900 font-bold text-sm">{item.val}</h4>
                   </div>
                 </motion.div>
               ))}
 
-              {/* Social Links Card */}
-                <div className="bg-[#0A0F1D] p-8 rounded-[2.5rem] text-white">
+              <div className="bg-[#0A0F1D] p-8 rounded-[2.5rem] text-white">
                 <p className="text-[10px] font-black uppercase tracking-widest mb-6 opacity-50 text-center">Follow Our Socials</p>
                 <div className="flex justify-center gap-4">
                     {[
-                    { icon: <FaFacebookF />, link: 'https://facebook.com/smithIt' },
-                    { icon: <FaInstagram />, link: 'https://www.instagram.com/smithitbd/' },
-                    { icon: <FaWhatsapp />, link: 'https://wa.me/8801764561996' }, 
-                    { icon: <FaLinkedinIn />, link: 'https://www.linkedin.com/company/smith-it/' },
-                    { icon: <FaYoutube />, link: 'https://www.youtube.com/channel/UC_dQDK1qmZUvYe8jXJ8riZw' }
+                      { icon: <FaFacebookF />, link: 'https://facebook.com/smithIt' },
+                      { icon: <FaInstagram />, link: 'https://www.instagram.com/smithitbd/' },
+                      { icon: <FaWhatsapp />, link: 'https://wa.me/8801764561996' }, 
+                      { icon: <FaLinkedinIn />, link: 'https://www.linkedin.com/company/smith-it/' },
+                      { icon: <FaYoutube />, link: 'https://www.youtube.com/channel/UC_dQDK1qmZUvYe8jXJ8riZw' }
                     ].map((soc, i) => (
-                    <motion.a 
-                        key={i} 
-                        href={soc.link} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
+                      <motion.a 
+                        key={i} href={soc.link} target="_blank" rel="noopener noreferrer" 
                         whileHover={{ y: -5, scale: 1.1 }}
                         className="w-12 h-12 bg-white/5 hover:bg-red-600 rounded-2xl flex items-center justify-center transition-all border border-white/10 text-white"
-                    >
+                      >
                         {soc.icon}
-                    </motion.a>
+                      </motion.a>
                     ))}
                 </div>
-                </div>
+              </div>
             </div>
 
-            {/* Right: Modern Contact Form */}
+            {/* Form */}
             <motion.div 
               initial={{ opacity: 0, x: 30 }}
               whileInView={{ opacity: 1, x: 0 }}
@@ -121,64 +153,73 @@ const ContactUs = () => {
                 <div className="grid md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Full Name</label>
-                    <input type="text" required placeholder="John Doe" className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm" />
+                    <input 
+                      type="text" required value={formData.name}
+                      onChange={(e) => setFormData({...formData, name: e.target.value})}
+                      placeholder="John Doe" 
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm" 
+                    />
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Email Address</label>
-                    <input type="email" required placeholder="john@example.com" className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm" />
+                    <input 
+                      type="email" required value={formData.email}
+                      onChange={(e) => setFormData({...formData, email: e.target.value})}
+                      placeholder="john@example.com" 
+                      className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm" 
+                    />
                   </div>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Subject</label>
-                  <select className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm cursor-pointer">
-                    <option>General Inquiry</option>
-                    <option>Restaurant Partnership</option>
-                    <option>Technical Issue</option>
-                    <option>Feedback</option>
+                  <select 
+                    value={formData.subject}
+                    onChange={(e) => setFormData({...formData, subject: e.target.value})}
+                    className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm cursor-pointer"
+                  >
+                    <option value="General Inquiry">General Inquiry</option>
+                    <option value="Restaurant Partnership">Restaurant Partnership</option>
+                    <option value="Technical Issue">Technical Issue</option>
+                    <option value="Feedback">Feedback</option>
                   </select>
                 </div>
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Your Message</label>
-                  <textarea rows="5" required placeholder="How can we help you today?" className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm resize-none"></textarea>
+                  <textarea 
+                    rows="5" required value={formData.message}
+                    onChange={(e) => setFormData({...formData, message: e.target.value})}
+                    placeholder="How can we help you today?" 
+                    className="w-full px-6 py-4 bg-slate-50 border-2 border-transparent focus:border-red-100 focus:bg-white rounded-2xl outline-none transition-all font-bold text-sm resize-none"
+                  ></textarea>
                 </div>
 
                 <motion.button 
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  disabled={loading}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} disabled={loading}
                   className="w-full py-5 bg-red-600 text-white rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-red-200 hover:bg-[#0A0F1D] transition-all flex items-center justify-center gap-3 disabled:opacity-70"
                 >
                   {loading ? 'Sending...' : 'Send Message'} <FaPaperPlane className="text-[10px]" />
                 </motion.button>
               </form>
             </motion.div>
-
           </div>
         </div>
       </section>
 
-      {/* --- Map Section --- */}
+      {/* Map */}
       <section className="container mx-auto px-6 pb-24">
         <motion.div {...fadeUp} className="w-full h-[450px] bg-slate-100 rounded-[3.5rem] overflow-hidden shadow-2xl relative border-8 border-white">
            <iframe 
-            title="location"
-            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d904.7960763878901!2d91.8721997695371!3d24.891694198619287!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3751ab94fa6bcfc3%3A0xe2a7621e620b8fd2!2z4Ka44KeN4Kau4Ka_4KalIOCmh-CmnyB84Kah4Ka_4Kac4Ka_4Kaf4Ka-4KayIOCmruCmvuCmsOCnjeCmleCnh-Cmn-Cmv-CmgiDgpo_gppzgp4fgpqjgp43gprjgpr8gJiDgpofgpqjgpqvgprDgpq7gp4fgprbgpqgg4Kaf4KeH4KaV4Kao4KeL4Kay4Kac4Ka_IOCmleCni-CmruCnjeCmquCmvuCmqOCmvw!5e0!3m2!1sbn!2sbd!4v1773477565991!5m2!1sbn!2sbd" 
-            width="100%" 
-            height="100%" 
-            style={{ border: 0 }} 
-            allowFullScreen="" 
-            loading="lazy"
+            title="location" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3619.102646271295!2d91.871031!3d24.894458!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x375054cb595f17a9%3A0x6d9050014b986e7a!2sBondor%20Bazar%2C%20Sylhet!5e0!3m2!1sen!2sbd!4v1700000000000!5m2!1sen!2sbd" 
+            width="100%" height="100%" style={{ border: 0 }} allowFullScreen="" loading="lazy"
           ></iframe>
-          
           <div className="absolute bottom-8 left-8 bg-[#0A0F1D] text-white p-6 rounded-3xl shadow-2xl max-w-xs hidden md:block">
             <h5 className="font-black text-red-500 uppercase tracking-widest text-[10px] mb-2">Main Hub</h5>
             <p className="text-sm font-bold">Rashid Building (4th & 5th Floor) <br /> Bondorbazer, Sylhet 3100</p>
           </div>
         </motion.div>
       </section>
-
     </div>
   );
 };

@@ -1332,6 +1332,47 @@ app.put('/api/update-table-status', (req, res) => {
     });
 });
 
+// Message post for user
+app.post('/api/contact', (req, res) => {
+    const { name, email, subject, message } = req.body;
+
+    if (!name || !email || !subject || !message) {
+        return res.status(400).json({ success: false, message: "All fields are required!" });
+    }
+
+    const sqlQuery = "INSERT INTO contact_messages (name, email, subject, message) VALUES (?, ?, ?, ?)";
+    
+    db.execute(sqlQuery, [name, email, subject, message], (err, result) => {
+        if (err) {
+            console.error("Database Error:", err);
+            return res.status(500).json({ success: false, message: "Database Error" });
+        }
+        res.status(201).json({ success: true, message: "Your message has been saved!" });
+    });
+});
+
+// Superadmin read all messages
+app.get('/api/admin/messages', (req, res) => {
+    const sqlQuery = "SELECT * FROM contact_messages ORDER BY created_at DESC";
+
+    db.query(sqlQuery, (err, results) => {
+        if (err) {
+            console.error("Fetch Error:", err);
+            return res.status(500).json({ success: false, message: "Failed to fetch messages" });
+        }
+        res.json(results);
+    });
+});
+
+// Maek message dr indivisual message 
+app.put('/api/admin/messages/:id/read', (req, res) => {
+    const { id } = req.params;
+    db.execute("UPDATE contact_messages SET is_read = TRUE WHERE id = ?", [id], (err, result) => {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ success: true, message: "Marked as read" });
+    });
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
