@@ -936,7 +936,7 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
     try {
         const { slug } = req.params;
 
-        // ১. রেস্টুরেন্টের প্রোফাইল ডাটা এবং ডেলিভারি এরিয়া আনা
+        // ১. রেস্টুরেন্টের প্রোফাইল ডাটা এবং ডেলিভারি এরিয়া আনা
         const [restaurantRows] = await db.query(
             `SELECT id, restaurant_name, location, logo, bg_image, contact_mobile, status 
              FROM restaurants WHERE slug = ?`, [slug]
@@ -949,18 +949,18 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
         const restaurant = restaurantRows[0];
         const resId = restaurant.id;
 
-        // ২. ডেলিভারি এরিয়া এবং চার্জ আনা
+        // ২. ডেলিভারি এরিয়া এবং চার্জ আনা
         const [areas] = await db.query(
             "SELECT areaName, deliveryCharge FROM delivery_areas WHERE restaurant_id = ?", [resId]
         );
 
-        // ৩. সব প্রোডাক্ট, ইমেজ এবং অফার একসাথে আনা
+        // ৩. সব প্রোডাক্ট, ইমেজ এবং অফার (Offers Table + Product Table Discount) একসাথে আনা
         const sqlMenu = `
             SELECT 
-                p.id, p.name, p.price, p.offer_price, p.category, p.is_available,
-                GROUP_CONCAT(pi.image_path) as all_images,
+                p.id, p.name, p.price, p.offer_price as direct_discount, p.category, p.is_available,
+                GROUP_CONCAT(DISTINCT pi.image_path) as all_images,
                 o.offerTitle, o.offerPrice as promo_price, o.status as offer_status,
-                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', 1, 0) AS has_offer
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', 1, 0) AS has_promo
             FROM products p 
             LEFT JOIN product_images pi ON p.id = pi.product_id 
             LEFT JOIN offers o ON p.id = o.productId
@@ -970,7 +970,7 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
 
         const [products] = await db.query(sqlMenu, [resId]);
 
-        // ৪. ডাটা ফরম্যাটিং (Image Path যোগ করা এবং Category অনুযায়ী Group করা)
+        // ৪. ডাটা ফরম্যাটিং (ফ্রন্টএন্ডের useMemo ফিল্টারিং এর সাথে মিল রেখে)
         const formattedMenu = products.reduce((acc, item) => {
             const category = item.category || 'Uncategorized';
             
@@ -979,13 +979,34 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
                 ? item.all_images.split(',').map(img => `http://localhost:5000/uploads/${img}`)
                 : [];
 
+            // অফার লজিক নির্ধারণ
+            let displayPrice = item.price;
+            let oldPrice = null;
+            let displayName = item.name;
+
+            if (item.has_promo) {
+                // 'offers' টেবিলের অফার থাকলে প্রাধান্য পাবে
+                displayPrice = item.promo_price;
+                oldPrice = item.price;
+                displayName = item.offerTitle; 
+            } else if (item.direct_discount > 0 && item.direct_discount < item.price) {
+                // প্রোডাক্ট টেবিলের 'offer_price' থাকলে
+                displayPrice = item.direct_discount;
+                oldPrice = item.price;
+            }
+
             if (!acc[category]) acc[category] = [];
             
             acc[category].push({
-                ...item,
+                id: item.id,
+                name: item.name, // Original name
+                display_name: displayName,
+                price: item.price, // Original price
+                display_price: displayPrice,
+                old_price: oldPrice, // এটি ফ্রন্টএন্ডের filtering এ লাগবে
+                category: category,
                 images: imageArray,
-                display_price: item.has_offer ? item.promo_price : item.price,
-                display_name: item.has_offer ? item.offerTitle : item.name
+                is_available: item.is_available
             });
             return acc;
         }, {});
@@ -998,7 +1019,7 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
                 bg_image: restaurant.bg_image ? `http://localhost:5000/uploads/${restaurant.bg_image}` : null,
                 delivery_info: areas
             },
-            menu: formattedMenu // এটি { "Dessert": [...], "Pitha": [...] } ফরম্যাটে যাবে
+            menu: formattedMenu 
         });
 
     } catch (error) {

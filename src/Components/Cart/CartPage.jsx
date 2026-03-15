@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../../src/context/CartContext'; 
 import { 
   FaShoppingCart, FaPlus, FaPhoneAlt, FaSearch, 
-  FaArrowLeft, FaCheck, FaTimes, FaChevronDown 
+  FaArrowLeft, FaCheck, FaTimes, FaChevronDown, FaTag 
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
 import Swal from 'sweetalert2';
@@ -54,33 +54,62 @@ const RestaurantPage = () => {
         const response = await axios.get(`http://localhost:5000/api/public/restaurant/${restaurantSlug}`);
         if (response.data) {
           setProfile(response.data.profile);
-          setMenuData(response.data.menu);
+          setMenuData(response.data.menu || {});
         }
       } catch (err) {
         setError(err.response?.data?.message || "Restaurant not found or server error");
       } finally {
-        setTimeout(() => setLoading(false), 800); // Smooth transition for loader
+        setTimeout(() => setLoading(false), 800); 
       }
     };
     fetchFullData();
   }, [restaurantSlug]);
 
-  // --- Logic Helpers ---
-  const categories = useMemo(() => ['All', ...Object.keys(menuData)], [menuData]);
-
+  // --- NEW LOGIC: Offers Filtering ---
+  
+  // ১. সব প্রোডাক্টকে এক লিস্টে আনা
   const allProducts = useMemo(() => {
     let list = [];
-    Object.values(menuData).forEach(catProds => { list = [...list, ...catProds]; });
+    Object.values(menuData).forEach(catProds => {
+      if (Array.isArray(catProds)) list = [...list, ...catProds];
+    });
     return list;
   }, [menuData]);
 
+  // ২. অফার আছে এমন প্রোডাক্টগুলো বের করা (যদি old_price থাকে)
+  const offerProducts = useMemo(() => {
+    return allProducts.filter(p => p.old_price && Number(p.old_price) > Number(p.display_price));
+  }, [allProducts]);
+
+  // ৩. ক্যাটাগরি লিস্ট তৈরি (অফার থাকলে সবার আগে আসবে)
+  const categories = useMemo(() => {
+    const cats = [];
+    if (offerProducts.length > 0) {
+      cats.push('Offers 🎁'); // অফার থাকলে সবার উপরে আসবে
+    }
+    cats.push('All');
+    Object.keys(menuData).forEach(cat => {
+      if (!cats.includes(cat)) cats.push(cat);
+    });
+    return cats;
+  }, [menuData, offerProducts]);
+
+  // ৪. ফিল্টার্ড প্রোডাক্টস
   const filteredProducts = useMemo(() => {
-    let prods = activeCategory === 'All' ? allProducts : (menuData[activeCategory] || []);
+    let prods = [];
+    if (activeCategory === 'Offers 🎁') {
+      prods = offerProducts;
+    } else if (activeCategory === 'All') {
+      prods = allProducts;
+    } else {
+      prods = menuData[activeCategory] || [];
+    }
+
     if (searchTerm) {
       prods = prods.filter(p => p.display_name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     return prods;
-  }, [menuData, activeCategory, searchTerm, allProducts]);
+  }, [menuData, activeCategory, searchTerm, allProducts, offerProducts]);
 
   const handleAddToCart = async (product) => {
     const cartItem = {
@@ -88,7 +117,7 @@ const RestaurantPage = () => {
       name: product.display_name,
       price: product.display_price,
       img: product.images[0] || "https://via.placeholder.com/150",
-      restaurant_id: profile.id,
+      restaurant_id: profile?.id,
       restaurantSlug: restaurantSlug
     };
 
@@ -135,24 +164,28 @@ const RestaurantPage = () => {
         @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.15); } 100% { transform: scale(1); } }
         .cart-bounce { animation: cartBounce 0.5s ease; }
         @keyframes cartBounce { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.25); } }
+        
+        /* Blinking Animation for Offers */
+        .blink-offer { animation: blinker 1.2s cubic-bezier(.5, 0, 1, 1) infinite alternate; background: #be123c !important; color: white !important; }
+        @keyframes blinker { from { opacity: 1; transform: scale(1.05); } to { opacity: 0.7; transform: scale(1); } }
       `}</style>
 
       {/* Hero Section */}
       <div className="h-[45vh] md:h-[500px] relative overflow-hidden bg-slate-900">
-        <img src={profile.bg_image || "https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg"} className="w-full h-full object-cover opacity-60" alt="cover" />
+        <img src={profile?.bg_image || "https://images.pexels.com/photos/958545/pexels-photo-958545.jpeg"} className="w-full h-full object-cover opacity-60" alt="cover" />
         <button onClick={() => navigate(-1)} className="absolute top-5 left-5 z-50 bg-white/20 hover:bg-white/40 backdrop-blur-lg p-4 rounded-2xl text-white border border-white/20 transition-all">
           <FaArrowLeft />
         </button>
         <div className="absolute bottom-12 left-5 right-5 md:left-20 z-20">
           <div className="flex items-center gap-4 md:gap-8 glass-morphism p-4 md:p-6 rounded-[35px] md:rounded-[45px] shadow-2xl w-full max-w-3xl">
              <div className="w-20 h-20 md:w-32 md:h-32 bg-white rounded-[25px] flex items-center justify-center p-2 shadow-inner overflow-hidden">
-                <img src={profile.logo} className="w-full h-full object-contain" alt="logo" />
+                <img src={profile?.logo} className="w-full h-full object-contain" alt="logo" />
              </div>
              <div className="flex-1">
-                <h1 className="text-2xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">{profile.restaurant_name}</h1>
+                <h1 className="text-2xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">{profile?.restaurant_name}</h1>
                 <div className="flex items-center gap-2 text-white/80">
                    <FaLocationDot className="text-orange-500 text-sm md:text-xl" />
-                   <span className="text-[10px] md:text-lg font-bold uppercase tracking-widest">{profile.location}</span>
+                   <span className="text-[10px] md:text-lg font-bold uppercase tracking-widest">{profile?.location}</span>
                 </div>
              </div>
           </div>
@@ -173,7 +206,7 @@ const RestaurantPage = () => {
             />
           </div>
           <div className="flex gap-3">
-            <a href={`tel:${profile.contact_mobile}`} className="flex-1 xl:w-56 bg-gradient-to-r from-rose-600 to-orange-500 text-white rounded-[30px] md:rounded-[45px] font-black text-sm flex items-center justify-center gap-3 px-8 h-16 md:h-20 shadow-lg shadow-rose-200">
+            <a href={`tel:${profile?.contact_mobile}`} className="flex-1 xl:w-56 bg-gradient-to-r from-rose-600 to-orange-500 text-white rounded-[30px] md:rounded-[45px] font-black text-sm flex items-center justify-center gap-3 px-8 h-16 md:h-20 shadow-lg shadow-rose-200">
               <FaPhoneAlt /> <span>ORDER NOW</span>
             </a>
           </div>
@@ -192,9 +225,13 @@ const RestaurantPage = () => {
                       setActiveCategory(cat); 
                       setVisibleCount(6);
                     }} 
-                    className={`flex-shrink-0 px-6 py-4 rounded-2xl font-black text-[11px] uppercase transition-all duration-300 flex items-center justify-between ${activeCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100'}`}
+                    className={`flex-shrink-0 px-6 py-4 rounded-2xl font-black text-[11px] uppercase transition-all duration-300 flex items-center justify-between 
+                    ${cat === 'Offers 🎁' ? 'blink-offer' : (activeCategory === cat ? 'bg-slate-900 text-white shadow-xl scale-105' : 'bg-slate-50 text-slate-400 hover:bg-slate-100')}`}
                   >
-                    <span>{cat}</span>
+                    <span className="flex items-center gap-2">
+                      {cat === 'Offers 🎁'}
+                      {cat}
+                    </span>
                     {activeCategory === cat && <motion.div layoutId="dot" className="w-1.5 h-1.5 rounded-full bg-orange-500" />}
                   </button>
                 ))}
@@ -206,15 +243,12 @@ const RestaurantPage = () => {
           <div className="flex-1 w-full min-h-[600px]">
             <div className="flex items-center justify-between mb-8 px-2">
               <h2 className="text-3xl font-black text-slate-900 italic uppercase tracking-tighter">
-                {activeCategory} <span className="text-rose-600">Items</span>
+                {activeCategory.replace(' 🎁', '')} <span className="text-rose-600">Items</span>
               </h2>
               <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">{filteredProducts.length} Total</p>
             </div>
 
-            <motion.div 
-              layout
-              className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8"
-            >
+            <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
               <AnimatePresence mode='popLayout'>
                 {filteredProducts.slice(0, visibleCount).map((product) => (
                   <motion.div 
@@ -223,11 +257,19 @@ const RestaurantPage = () => {
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     key={product.id} 
-                    className="bg-white rounded-[40px] p-4 shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 group cursor-pointer" 
+                    className="bg-white rounded-[40px] p-4 shadow-sm hover:shadow-2xl transition-all duration-500 border border-slate-100 group cursor-pointer relative" 
                     onClick={() => setSelectedProduct(product)}
                   >
                     <div className="aspect-square relative overflow-hidden rounded-[30px] bg-slate-100">
                       <img src={product.images[0]} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt={product.display_name} />
+                      
+                      {/* Offer Badge on Card */}
+                      {product.old_price && Number(product.old_price) > Number(product.display_price) && (
+                        <div className="absolute top-4 left-4 bg-rose-600 text-white px-3 py-1 rounded-xl font-black text-[10px] shadow-lg flex items-center gap-1">
+                          <FaTag size={8}/> SAVE ৳{product.old_price - product.display_price}
+                        </div>
+                      )}
+
                       <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all ${tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
                         {tickedId === product.id ? <FaCheck /> : <FaPlus />}
                       </button>
@@ -235,7 +277,10 @@ const RestaurantPage = () => {
                     <div className="mt-5 px-2">
                       <h4 className="text-xl font-black text-slate-800 italic truncate">{product.display_name}</h4>
                       <div className="flex items-center justify-between mt-4">
-                        <span className="text-2xl font-black text-slate-950 italic">৳{product.display_price}</span>
+                        <div className="flex flex-col">
+                          {product.old_price && <span className="text-slate-400 text-xs line-through font-bold">৳{product.old_price}</span>}
+                          <span className="text-2xl font-black text-slate-950 italic leading-none">৳{product.display_price}</span>
+                        </div>
                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">{product.category}</span>
                       </div>
                     </div>
@@ -244,7 +289,7 @@ const RestaurantPage = () => {
               </AnimatePresence>
             </motion.div>
 
-            {/* See More Button */}
+            {/* Load More Button */}
             {visibleCount < filteredProducts.length && (
               <div className="mt-16 flex justify-center">
                 <button 
@@ -304,8 +349,13 @@ const RestaurantPage = () => {
               <button onClick={() => setSelectedProduct(null)} className="absolute top-6 right-6 z-[70] bg-white/80 backdrop-blur-md p-4 rounded-2xl shadow-lg hover:bg-rose-600 hover:text-white transition-all">
                 <FaTimes size={20}/>
               </button>
-              <div className="w-full md:w-1/2 h-80 md:h-[600px]">
+              <div className="w-full md:w-1/2 h-80 md:h-[600px] relative">
                 <img src={selectedProduct.images[0]} className="w-full h-full object-cover" alt="detail" />
+                {selectedProduct.old_price && (
+                   <div className="absolute top-6 left-6 bg-rose-600 text-white px-6 py-2 rounded-2xl font-black animate-pulse shadow-xl">
+                      SPECIAL OFFER 🔥
+                   </div>
+                )}
               </div>
               <div className="p-10 md:p-16 flex-1 flex flex-col justify-center">
                 <span className="text-orange-500 font-black text-xs uppercase tracking-widest mb-4 bg-orange-50 px-4 py-2 rounded-full w-fit">
@@ -314,9 +364,9 @@ const RestaurantPage = () => {
                 <h2 className="text-4xl md:text-6xl font-black text-slate-900 italic mb-6 leading-tight uppercase tracking-tighter">
                   {selectedProduct.display_name}
                 </h2>
-                <div className="flex items-center gap-4 mb-10">
-                  <span className="text-5xl font-black italic text-slate-950 tracking-tighter">৳{selectedProduct.display_price}</span>
-                  {selectedProduct.quantity && <span className="text-slate-400 font-bold text-lg">/ {selectedProduct.quantity}</span>}
+                <div className="flex flex-col mb-10">
+                  {selectedProduct.old_price && <span className="text-slate-400 font-bold text-2xl line-through">৳{selectedProduct.old_price}</span>}
+                  <span className="text-5xl md:text-7xl font-black italic text-slate-950 tracking-tighter">৳{selectedProduct.display_price}</span>
                 </div>
                 <button 
                   onClick={() => { handleAddToCart(selectedProduct); setSelectedProduct(null); }} 
