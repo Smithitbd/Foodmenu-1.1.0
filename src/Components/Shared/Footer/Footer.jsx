@@ -60,24 +60,24 @@ const Footer = () => {
               <ul>
                 <li><Link to="/about">About Us</Link></li>
                 <li><Link to="/contact">Contact Us</Link></li>
-                <li><Link to="/how-it-works">How It Works</Link></li>
-                <li><Link to="/careers">Careers</Link></li>
+                <li><Link to="/">How It Works</Link></li>
+                <li><Link to="/">Careers</Link></li>
               </ul>
             </div>
             <div className="link-group">
               <h3>Food Delivery</h3>
               <ul>
-                <li><Link to="/pickup">Pick-Up</Link></li>
-                <li><Link to="/dine-in">Dine-In</Link></li>
-                <li><Link to="/subscription">Subscription</Link></li>
+                <li><Link to="/">Pick-Up</Link></li>
+                <li><Link to="/">Dine-In</Link></li>
+                <li><Link to="/">Subscription</Link></li>
               </ul>
             </div>
             <div className="link-group">
               <h3>Legal</h3>
               <ul>
-                <li><Link to="/help">Help & Support</Link></li>
-                <li><Link to="/terms">Terms & Conditions</Link></li>
-                <li><Link to="/privacy">Privacy Policy</Link></li>
+                <li><Link to="/">Help & Support</Link></li>
+                <li><Link to="/">Terms & Conditions</Link></li>
+                <li><Link to="/">Privacy Policy</Link></li>
               </ul>
             </div>
           </div>

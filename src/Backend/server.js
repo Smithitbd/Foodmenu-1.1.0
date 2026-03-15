@@ -709,8 +709,7 @@ app.get('/api/restaurant/:id', async (req, res) => {
     }
 });
 
-// --- চুড়ান্ত ফিক্সড আপডেট এপিআই (সব কলাম এবং ফাইল সিঙ্ক করা) ---
-
+// 
 app.put('/api/restaurant/update-all/:id', upload.fields([
     { name: 'logo', maxCount: 1 },
     { name: 'cover', maxCount: 1 }
@@ -758,7 +757,7 @@ app.get('/api/setup-offer-data/:restaurant_id', async (req, res) => {
     }
 });
 
-// ২. অফার লঞ্চ করা এবং প্রোডাক্ট টেবিলের দাম আপডেট করা
+// Offer launch and Product price update
 app.post('/api/launch-offer', upload.single('offerImage'), async (req, res) => {
     const { 
         offerTitle, productId, itemName, originalPrice, 
@@ -806,7 +805,7 @@ app.post('/api/launch-offer', upload.single('offerImage'), async (req, res) => {
 });
 
 //Restaurant Registration API
-// ১. সব ইউজার গেট করার এপিআই
+// All user
 app.get('/api/users', async (req, res) => {
     try {
         const [results] = await db.query("SELECT id, name, email, password, role FROM users ORDER BY id DESC");
@@ -816,7 +815,7 @@ app.get('/api/users', async (req, res) => {
     }
 });
 
-// ২. নতুন ইউজার সেভ করার এপিআই
+// New User
 app.post('/api/users', async (req, res) => {
     const { name, email, password, role } = req.body;
     try {
@@ -828,7 +827,7 @@ app.post('/api/users', async (req, res) => {
     }
 });
 
-// ৩. ইউজার আপডেট করার এপিআই
+//Update user
 app.put('/api/users/:id', async (req, res) => {
     const { name, email, password, role } = req.body;
     const { id } = req.params;
@@ -841,7 +840,7 @@ app.put('/api/users/:id', async (req, res) => {
     }
 });
 
-// ৪. ইউজার ডিলিট করার এপিআই
+// Delete user
 app.delete('/api/users/:id', async (req, res) => {
     try {
         await db.query("DELETE FROM users WHERE id = ?", [req.params.id]);
@@ -1101,7 +1100,7 @@ app.post('/api/place-order', async (req, res) => {
     }
 });
 
-// সব রেস্টুরেন্টের জন্য কমন এরিয়া এবং তাদের চার্জ আনার এপিআই
+// common area doe all restaurant 
 app.post('/api/get-cart-delivery-info', async (req, res) => {
     try {
         const { restaurantIds } = req.body; // Array of IDs [1, 2, 5]
@@ -1122,7 +1121,7 @@ app.post('/api/get-cart-delivery-info', async (req, res) => {
     }
 });
 
-// টেবিল লিস্ট আনার এপিআই (রেস্টুরেন্ট অনুযায়ী)
+// table list 
 app.get('/api/get-tables/:restaurantId', async (req, res) => {
     try {
         const { restaurantId } = req.params;
@@ -1322,7 +1321,7 @@ app.get('/api/tables/:resId', async (req, res) => {
     });
 });*/
 
-// ম্যানুয়ালি টেবিল স্ট্যাটাস আপডেট করার এপিআই (Book/Open)
+// Update Table status Manually 
 app.put('/api/update-table-status', (req, res) => {
     const { tableId, is_available } = req.body;
     const sql = "UPDATE restaurant_tables SET is_available = ? WHERE id = ?";
@@ -1364,7 +1363,7 @@ app.get('/api/admin/messages', (req, res) => {
     });
 });
 
-// Maek message dr indivisual message 
+// Mark message for indivisual message 
 app.put('/api/admin/messages/:id/read', (req, res) => {
     const { id } = req.params;
     db.execute("UPDATE contact_messages SET is_read = TRUE WHERE id = ?", [id], (err, result) => {

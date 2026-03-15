@@ -32,15 +32,16 @@ const ContactUs = () => {
       const data = await response.json();
 
       if (data.success) {
-        setLoading(false);
+        setLoading(false); 
         
         Swal.fire({
           icon: 'success',
           title: 'Message Sent!',
           text: 'Your message has been saved. Redirecting to home...',
           confirmButtonColor: '#EF4444',
-          timer: 20, 
+          timer: 2000, 
           timerProgressBar: true,
+          showConfirmButton: true,
         }).then(() => {
           navigate('/'); 
         });
@@ -49,7 +50,7 @@ const ContactUs = () => {
         throw new Error(data.message || 'Something went wrong');
       }
     } catch (error) {
-      setLoading(false);
+      setLoading(false); 
       Swal.fire({
         icon: 'error',
         title: 'Submission Failed',
@@ -207,11 +208,11 @@ const ContactUs = () => {
         </div>
       </section>
 
-      {/* Map */}
+      {/* Map Section */}
       <section className="container mx-auto px-6 pb-24">
         <motion.div {...fadeUp} className="w-full h-[450px] bg-slate-100 rounded-[3.5rem] overflow-hidden shadow-2xl relative border-8 border-white">
            <iframe 
-            title="location" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3619.102646271295!2d91.871031!3d24.894458!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x375054cb595f17a9%3A0x6d9050014b986e7a!2sBondor%20Bazar%2C%20Sylhet!5e0!3m2!1sen!2sbd!4v1700000000000!5m2!1sen!2sbd" 
+            title="location" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3619.1843061585787!2d91.87026857455614!3d24.891694177908917!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3751ab94fa6bcfc3%3A0xe2a7621e620b8fd2!2z4Ka44KeN4Kau4Ka_4KalIOCmh-CmnyB84Kah4Ka_4Kac4Ka_4Kaf4Ka-4KayIOCmruCmvuCmsOCnjeCmleCnh-Cmn-Cmv-CmgiDgpo_gppzgp4fgpqjgp43gprjgpr8gJiDgpofgpqjgpqvgprDgpq7gp4fgprbgpqgg4Kaf4KeH4KaV4Kao4KeL4Kay4Kac4Ka_IOCmleCni-CmruCnjeCmquCmvuCmqOCmvw!5e0!3m2!1sbn!2sbd!4v1773549993653!5m2!1sbn!2sbd"
             width="100%" height="100%" style={{ border: 0 }} allowFullScreen="" loading="lazy"
           ></iframe>
           <div className="absolute bottom-8 left-8 bg-[#0A0F1D] text-white p-6 rounded-3xl shadow-2xl max-w-xs hidden md:block">
