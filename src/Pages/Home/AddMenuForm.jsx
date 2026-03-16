@@ -43,8 +43,13 @@ const AddMenuForm = () => {
 
   // --- UPDATED HANDLE FINISH ---
   const handleFinish = async () => {
-    const slug = formData.restaurantName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
-    
+    if (!formData.restaurantName) {
+        Swal.fire('Error', 'Restaurant Name is missing!', 'error');
+        return;
+    }
+    //const slug = formData.restaurantName.toLowerCase().replace(/ /g, '-').replace(/[^\w-]+/g, '');
+    const slug = formData.restaurantName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^\w-]+/g, '');
+
     Swal.fire({
       title: 'Registering...',
       text: 'Please wait while we set up your restaurant.',

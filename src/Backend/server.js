@@ -21,7 +21,7 @@ if (!fs.existsSync(uploadDir)) {
 }
 
 // --- Multer Configuration ---
-const storage = multer.diskStorage({
+/*const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'uploads/');
     },
@@ -31,12 +31,20 @@ const storage = multer.diskStorage({
     }
 });
 //const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload = multer({ storage: storage });*/
+
+const storage = multer.memoryStorage(); 
+
+const upload = multer({ 
+  storage: storage
+  //limits: { fileSize: 10 * 1024 * 1024 } // ১০ মেগাবাইট পর্যন্ত সাপোর্ট
+});
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/uploads', express.static('uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Database Connection ---
 const db = mysql.createPool({
@@ -82,43 +90,42 @@ app.post('/api/register-restaurant', upload.fields([
     { name: 'idFilePdf', maxCount: 1 }
 ]), async (req, res) => {
     try {
-        
-        const { owner_name, owner_email, owner_password, restaurant_name,restaurant_category, slug, location, area_id } = req.body;
+        const { owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, location, area_id } = req.body;
         
         const files = req.files || {};
         let logoFileName = null;
         let nidFileName = null;
 
-        // Process Logo (Memory buffer থেকে শার্প দিয়ে রিসাইজ)
+        // --- ১. লোগো প্রসেসিং (Sharp ফিক্স) ---
         if (files['logo']) {
             const file = files['logo'][0];
             logoFileName = `logo-${Date.now()}.webp`;
             
-            // Note: sharp(file.path) দিতে হবে যদি diskStorage ব্যবহার করো, 
-            // আর memoryStorage হলে file.buffer দিতে হবে।
-            await sharp(file.path) 
+            // ভুল ছিল: sharp(file.path) -> সঠিক: sharp(file.buffer)
+            // কারণ memoryStorage এ ফাইল হার্ডড্রাইভে থাকে না, র‍্যামে (buffer) থাকে।
+            await sharp(file.buffer) 
                 .resize(400, 400, { fit: 'inside' })
                 .webp({ quality: 80 })
                 .toFile(path.join(uploadDir, logoFileName));
-            
-            // মূল ফাইলটি ডিলিট করে দেওয়া ভালো (যদি diskStorage ব্যবহার করো)
-            fs.unlinkSync(file.path);
         }
 
-        // Process NID/Documents
+        // --- ২. এনআইডি বা পিডিএফ প্রসেসিং (Buffer ফিক্স) ---
         if (files['idFileFront']) {
             const file = files['idFileFront'][0];
             nidFileName = `nid-${Date.now()}${path.extname(file.originalname)}`;
-            fs.renameSync(file.path, path.join(uploadDir, nidFileName));
+            // memoryStorage এ file.buffer ব্যবহার করে ফাইল সেভ করতে হয়
+            fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
         } else if (files['idFilePdf']) {
             const file = files['idFilePdf'][0];
             nidFileName = `doc-${Date.now()}${path.extname(file.originalname)}`;
-            fs.renameSync(file.path, path.join(uploadDir, nidFileName));
+            fs.writeFileSync(path.join(uploadDir, nidFileName), file.buffer);
         }
 
+        // ৩. পাসওয়ার্ড হ্যাশিং
+        //const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(owner_password, saltRounds);
 
-        // SQL কুয়েরিতে restaurant_category কলামটি যোগ করা হয়েছে
+        // ৪. ডাটাবেস কুয়েরি
         const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, logo, nid_doc, location, area_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         await db.query(sql, [
@@ -132,7 +139,8 @@ app.post('/api/register-restaurant', upload.fields([
             nidFileName, 
             location,
             area_id, 
-            'inactive']);
+            'inactive'
+        ]);
         
         res.status(201).json({ message: "Registration Successful!" });
     } catch (error) {
@@ -241,7 +249,7 @@ app.get('/api/area-restaurants', async (req, res) => {
 });
 
 // --- MENU & PRODUCT APIS ---
-app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
+/*app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
     let productId = null; // ট্র্যাক রাখার জন্য যে প্রোডাক্ট ইনসার্ট হয়েছে কি না
     try {
         const { restaurant_id, name, price, offer_price, category, estimated_time, quantity } = req.body;
@@ -294,6 +302,45 @@ app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
                 ? "Product added but image upload failed: " + error.message 
                 : "Failed to add product: " + error.message
         });
+    }
+});*/
+
+app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
+    let productId = null;
+    try {
+        const { restaurant_id, name, price, offer_price, category, estimated_time, quantity } = req.body;
+        const files = req.files;
+
+        if (!files || files.length === 0) {
+            return res.status(400).json({ message: "No images uploaded" });
+        }
+
+        // ডাটাবেসে প্রোডাক্ট সেভ
+        const [productResult] = await db.query(
+            `INSERT INTO products (restaurant_id, name, price, offer_price, category, estimated_time, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [restaurant_id, name, price, offer_price || 0, category, estimated_time || 20, quantity || 'Full']
+        );
+        productId = productResult.insertId;
+
+        // ইমেজ প্রসেসিং লুপ
+        for (const file of files) {
+            const fileName = `prod-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
+            const uploadPath = path.join(process.cwd(), 'uploads', fileName);
+
+            // এখানে diskStorage না থাকায় file.buffer এখন কাজ করবে
+            await sharp(file.buffer) 
+                .resize(600, 600, { fit: 'cover' })
+                .webp({ quality: 80 })
+                .toFile(uploadPath); // সরাসরি ফাইল সেভ হচ্ছে এখানে
+            
+            await db.query(`INSERT INTO product_images (product_id, image_path) VALUES (?, ?)`, [productId, fileName]);
+        }
+
+        res.status(201).json({ success: true, message: "Product added successfully!" });
+
+    } catch (error) {
+        console.error("Sharp Error:", error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
@@ -579,6 +626,67 @@ app.get('/api/inventory/:resId', async (req, res) => {
 });
 
 // --- Manage Shop ---
+app.put('/api/restaurant/update-all/:id', upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'cover', maxCount: 1 }
+]), async (req, res) => {
+    const { id } = req.params;
+    const { restaurant_name, location, contact_mobile, slug } = req.body;
+    const files = req.files;
+
+    try {
+        // ১. আগে ডাটাবেস থেকে বর্তমান ফাইলের নামগুলো জানুন
+        const [rows] = await db.query("SELECT logo, bg_image FROM restaurants WHERE id = ?", [id]);
+        if (rows.length === 0) return res.status(404).json({ error: "Restaurant not found" });
+
+        let currentLogo = rows[0].logo;
+        let currentCover = rows[0].bg_image;
+
+        // ২. নতুন লোগো থাকলে প্রসেস করুন এবং পুরানোটা ডিলিট করুন
+        if (files['logo']) {
+            const logoFile = files['logo'][0];
+            const newLogoName = `logo-${Date.now()}.webp`;
+            
+            await sharp(logoFile.buffer)
+                .resize(400, 400, { fit: 'inside' })
+                .webp({ quality: 80 })
+                .toFile(path.join(__dirname, 'uploads', newLogoName));
+
+            if (currentLogo) {
+                const oldPath = path.join(__dirname, 'uploads', currentLogo);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+            currentLogo = newLogoName;
+        }
+
+        // ৩. নতুন কভার থাকলে প্রসেস করুন এবং পুরানোটা ডিলিট করুন
+        if (files['cover']) {
+            const coverFile = files['cover'][0];
+            const newCoverName = `cover-${Date.now()}.webp`;
+            
+            await sharp(coverFile.buffer)
+                .resize(1200, 600, { fit: 'cover' })
+                .webp({ quality: 80 })
+                .toFile(path.join(__dirname, 'uploads', newCoverName));
+
+            if (currentCover) {
+                const oldPath = path.join(__dirname, 'uploads', currentCover);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+            currentCover = newCoverName;
+        }
+
+        // ৪. ডাটাবেস আপডেট
+        const sql = "UPDATE restaurants SET restaurant_name=?, location=?, contact_mobile=?, slug=?, logo=?, bg_image=? WHERE id=?";
+        await db.query(sql, [restaurant_name, location, contact_mobile, slug, currentLogo, currentCover, id]);
+
+        res.json({ success: true, message: "Store updated successfully!" });
+
+    } catch (error) {
+        console.error("Update Error:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
 //Api for brunch add 
 app.post('/api/shops', upload.fields([{ name: 'logo' }, { name: 'bgImage' }]), (req, res) => {
   const { owner_name, owner_email, restaurant_name, location, social_link, contact_mobile } = req.body;
@@ -593,7 +701,6 @@ app.post('/api/shops', upload.fields([{ name: 'logo' }, { name: 'bgImage' }]), (
     res.status(200).json({ message: "Branch added!" });
   });
 });
-
 //  API  for update logo
 app.put('/api/shops/:id', upload.fields([{ name: 'logo' }, { name: 'bgImage' }]), async (req, res) => {
     const shopId = req.params.id;
@@ -710,7 +817,7 @@ app.get('/api/restaurant/:id', async (req, res) => {
 });
 
 // 
-app.put('/api/restaurant/update-all/:id', upload.fields([
+/*app.put('/api/restaurant/update-all/:id', upload.fields([
     { name: 'logo', maxCount: 1 },
     { name: 'cover', maxCount: 1 }
 ]), async (req, res) => {
@@ -738,7 +845,7 @@ app.put('/api/restaurant/update-all/:id', upload.fields([
         console.error(error);
         res.status(500).json({ error: "Database update failed" });
     }
-});
+});*/
 
 app.get('/api/setup-offer-data/:restaurant_id', async (req, res) => {
     const { restaurant_id } = req.params;
