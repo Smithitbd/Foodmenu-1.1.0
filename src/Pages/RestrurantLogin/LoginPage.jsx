@@ -36,6 +36,8 @@ const LoginPage = () => {
           showConfirmButton : false
         });
 
+        localStorage.setItem('userRole', loggedInUser.role);
+
         // store user data in localstorage
         localStorage.setItem('user', JSON.stringify(loggedInUser));
         localStorage.setItem('resId', loggedInUser.id);

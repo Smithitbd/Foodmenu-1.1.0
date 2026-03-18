@@ -152,25 +152,73 @@ app.post('/api/register-restaurant', upload.fields([
 app.post('/api/login', async (req, res) => {
     try {
         const { identifier, password } = req.body;
-        const sql = "SELECT * FROM restaurants WHERE owner_email = ? OR owner_name = ? OR restaurant_name = ?";
-        const [results] = await db.query(sql, [identifier, identifier, identifier]);
 
-        if (results.length > 0) {
-            const user = results[0];
+        // ১. প্রথমে Restaurants টেবিলে চেক করুন (Owner Login)
+        const ownerSql = "SELECT *, 'owner' as roleType FROM restaurants WHERE owner_email = ? OR owner_name = ? OR restaurant_name = ?";
+        const [ownerResults] = await db.query(ownerSql, [identifier, identifier, identifier]);
+
+        if (ownerResults.length > 0) {
+            const user = ownerResults[0];
+
+            // স্ট্যাটাস চেক (Block/Active)
+            if (user.status === 'blocked') {
+                return res.status(403).json({ message: "Your account is blocked by Admin!" });
+            }
+
             const isMatch = await bcrypt.compare(password, user.owner_password);
             if (isMatch) {
-                res.status(200).json({
+                return res.status(200).json({
                     message: "Login Successfully",
-                    user: { id: user.id, name: user.owner_name, restaurant: user.restaurant_name, logo: user.logo }
+                    user: { 
+                        id: user.id, 
+                        name: user.owner_name, 
+                        restaurant: user.restaurant_name, 
+                        logo: user.logo,
+                        role: 'Owner' // রোল সেট করে দেওয়া
+                    }
                 });
-            } else {
-                res.status(401).json({ message: "Invalid credentials!" });
             }
-        } else {
-            res.status(401).json({ message: "User not found" });
         }
+
+        // ২. যদি রেস্টুরেন্ট টেবিলে না পায়, তবে Users টেবিলে চেক করুন (Staff Login)
+        const staffSql = `SELECT u.*, r.restaurant_name, r.logo, r.status as res_status FROM users u 
+                          JOIN restaurants r ON u.restaurant_id = r.id 
+                          WHERE u.email = ? OR u.name = ?`;
+        const [staffResults] = await db.query(staffSql, [identifier, identifier]);
+
+        if (staffResults.length > 0) {
+            const staff = staffResults[0];
+
+            // চেক করুন রেস্টুরেন্ট বা স্টাফ কেউ ব্লকড কি না
+            if (staff.status === 'blocked') {
+                return res.status(403).json({ message: "This restaurant staff is currently suspended!" });
+            }
+
+            // যদি আপনার স্টাফ পাসওয়ার্ড হ্যাশ করা থাকে তবে bcrypt ব্যবহার করুন, নতুবা সরাসরি:
+            const isMatch = await bcrypt.compare(password, staff.password);
+            //const isMatch = (password === staff.password); // আপনার আগের কোড অনুযায়ী
+
+            if (isMatch) {
+                return res.status(200).json({
+                    message: "Staff Login Successfully",
+                    user: { 
+                        id: staff.restaurant_id, // স্টাফের জন্য মেইন আইডি হবে রেস্টুরেন্ট আইডি
+                        staffId: staff.id,
+                        name: staff.name, 
+                        restaurant: staff.restaurant_name, 
+                        logo: staff.logo,
+                        role: staff.role // Manager, Waiter ইত্যাদি
+                    }
+                });
+            }
+        }
+
+        // ৩. কোথাও না পাওয়া গেলে
+        res.status(401).json({ message: "Invalid credentials or User not found" });
+
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
     }
 });
 
@@ -924,11 +972,37 @@ app.get('/api/users', async (req, res) => {
 
 // New User
 app.post('/api/users', async (req, res) => {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, restaurant_id, restaurant_name } = req.body;
     try {
-        const sql = "INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)";
-        const [result] = await db.query(sql, [name, email, password, role]);
-        res.status(201).json({ message: "User created", userId: result.insertId });
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const sql = `INSERT INTO users (name, email, password, role, restaurant_id, restaurant_name, status) 
+                     VALUES (?, ?, ?, ?, ?, ?, 'active')`;
+        await db.query(sql, [name, email, hashedPassword, role, restaurant_id, restaurant_name]);
+        res.status(201).json({ message: "Staff Registered!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ১. নির্দিষ্ট রেস্টুরেন্টের স্টাফদের লিস্ট দেখা
+app.get('/api/users/:resId', async (req, res) => {
+    try {
+        const [results] = await db.query(
+            "SELECT id, name, email, role, status, restaurant_name FROM users WHERE restaurant_id = ? ORDER BY id DESC", 
+            [req.params.resId]
+        );
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ৩. স্ট্যাটাস আপডেট (Active/Block)
+app.patch('/api/users/:id/status', async (req, res) => {
+    const { status } = req.body; // status: 'active' or 'blocked'
+    try {
+        await db.query("UPDATE users SET status = ? WHERE id = ?", [status, req.params.id]);
+        res.json({ message: `User is now ${status}` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

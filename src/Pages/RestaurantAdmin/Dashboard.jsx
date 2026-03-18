@@ -12,7 +12,7 @@ import {
 } from 'recharts';
 
 const RestaurantDashboard = () => {
-  const [isStoreOpen, setIsStoreOpen] = useOutletContext();
+  const [isStoreOpen, setIsStoreOpen, userRole] = useOutletContext();
   const navigate = useNavigate();
   const resId = localStorage.getItem('resId'); 
 
