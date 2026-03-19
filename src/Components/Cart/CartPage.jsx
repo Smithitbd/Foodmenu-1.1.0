@@ -64,14 +64,16 @@ const RestaurantPage = () => {
     };
     fetchFullData();
   }, [restaurantSlug]);
-
-  // --- NEW LOGIC: Offers Filtering ---
   
   // ১. সব প্রোডাক্টকে এক লিস্টে আনা
   const allProducts = useMemo(() => {
     let list = [];
     Object.values(menuData).forEach(catProds => {
-      if (Array.isArray(catProds)) list = [...list, ...catProds];
+      if (Array.isArray(catProds)) {
+        // শুধু p.is_available === 1 অথবা p.is_available === true ফিল্টার করা হলো
+        const availableOnly = catProds.filter(p => p.is_available == 1);
+        list = [...list, ...availableOnly];
+      }
     });
     return list;
   }, [menuData]);
@@ -178,16 +180,16 @@ const RestaurantPage = () => {
         </button>
         <div className="absolute bottom-12 left-5 right-5 md:left-20 z-20">
           <div className="flex items-center gap-4 md:gap-8 glass-morphism p-4 md:p-6 rounded-[35px] md:rounded-[45px] shadow-2xl w-full max-w-3xl">
-             <div className="w-20 h-20 md:w-32 md:h-32 bg-white rounded-[25px] flex items-center justify-center p-2 shadow-inner overflow-hidden">
+            <div className="w-20 h-20 md:w-32 md:h-32 bg-white rounded-[25px] flex items-center justify-center p-2 shadow-inner overflow-hidden">
                 <img src={profile?.logo} className="w-full h-full object-contain" alt="logo" />
-             </div>
-             <div className="flex-1">
+            </div>
+            <div className="flex-1">
                 <h1 className="text-2xl md:text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-2">{profile?.restaurant_name}</h1>
                 <div className="flex items-center gap-2 text-white/80">
-                   <FaLocationDot className="text-orange-500 text-sm md:text-xl" />
-                   <span className="text-[10px] md:text-lg font-bold uppercase tracking-widest">{profile?.location}</span>
+                  <FaLocationDot className="text-orange-500 text-sm md:text-xl" />
+                  <span className="text-[10px] md:text-lg font-bold uppercase tracking-widest">{profile?.location}</span>
                 </div>
-             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -270,8 +272,14 @@ const RestaurantPage = () => {
                         </div>
                       )}
 
-                      <button onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all ${tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white'}`}>
-                        {tickedId === product.id ? <FaCheck /> : <FaPlus />}
+                      <button 
+                          disabled={product.is_available == 0} 
+                          onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} 
+                          className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all 
+                            ${product.is_available == 0 ? 'bg-slate-200 cursor-not-allowed text-slate-400' : 
+                              (tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white')}`}
+                        >
+                          {product.is_available == 0 ? <FaTimes /> : (tickedId === product.id ? <FaCheck /> : <FaPlus />)}
                       </button>
                     </div>
                     <div className="mt-5 px-2">
@@ -352,9 +360,9 @@ const RestaurantPage = () => {
               <div className="w-full md:w-1/2 h-80 md:h-[600px] relative">
                 <img src={selectedProduct.images[0]} className="w-full h-full object-cover" alt="detail" />
                 {selectedProduct.old_price && (
-                   <div className="absolute top-6 left-6 bg-rose-600 text-white px-6 py-2 rounded-2xl font-black animate-pulse shadow-xl">
+                  <div className="absolute top-6 left-6 bg-rose-600 text-white px-6 py-2 rounded-2xl font-black animate-pulse shadow-xl">
                       SPECIAL OFFER 🔥
-                   </div>
+                  </div>
                 )}
               </div>
               <div className="p-10 md:p-16 flex-1 flex flex-col justify-center">

@@ -959,6 +959,98 @@ app.post('/api/launch-offer', upload.single('offerImage'), async (req, res) => {
     }
 });
 
+// ১. রেস্টুরেন্ট অনুযায়ী সব অফার দেখা
+app.get('/api/offers/:resId', async (req, res) => {
+    try {
+        const [rows] = await db.query("SELECT * FROM offers WHERE productId IN (SELECT id FROM products WHERE restaurant_id = ?) ORDER BY id DESC", [req.params.resId]);
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ২. অফার স্ট্যাটাস আপডেট (Pause/Active)
+app.put('/api/toggle-offer/:id', async (req, res) => {
+    const { status, productId, offerPrice, originalPrice } = req.body;
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        // অফার টেবিল আপডেট
+        await connection.query("UPDATE offers SET status = ? WHERE id = ?", [status, req.params.id]);
+        
+        // যদি অফার একটিভ হয় তবে প্রোডাক্টের প্রাইস অফার প্রাইস হবে, আর ইনএক্টিভ হলে অরিজিনাল প্রাইস হবে
+        const newPrice = (status === 'active') ? offerPrice : null;
+        await connection.query("UPDATE products SET offer_price = ? WHERE id = ?", [newPrice, productId]);
+
+        await connection.commit();
+        res.json({ success: true });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally { connection.release(); }
+});
+
+// ৩. অফার ডিলিট করা
+app.delete('/api/delete-offer/:id/:productId', async (req, res) => {
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+        await connection.query("DELETE FROM offers WHERE id = ?", [req.params.id]);
+        // ডিলিট করলে প্রোডাক্টের অফার প্রাইস তুলে দিতে হবে
+        await connection.query("UPDATE products SET offer_price = NULL WHERE id = ?", [req.params.productId]);
+        await connection.commit();
+        res.json({ success: true });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally { connection.release(); }
+});
+
+// ৪. অফার আপডেট করার রুট
+app.put('/api/update-offer/:id', upload.single('offerImage'), async (req, res) => {
+    const { 
+        offerTitle, productId, offerPrice, endDate, 
+        selectedAreas, quantityType, totalQuantity, status 
+    } = req.body;
+    
+    const offerId = req.params.id;
+    let updateQuery = `UPDATE offers SET offerTitle=?, offerPrice=?, endDate=?, selectedAreas=?, quantityType=?, totalQuantity=?`;
+    let queryParams = [offerTitle, offerPrice, endDate, selectedAreas, quantityType, totalQuantity];
+
+    // যদি নতুন ইমেজ আপলোড করা হয়
+    if (req.file) {
+        updateQuery += `, offerImage=?`;
+        queryParams.push(req.file.filename);
+    }
+
+    updateQuery += ` WHERE id=?`;
+    queryParams.push(offerId);
+
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // ১. অফার টেবিল আপডেট
+        await connection.query(updateQuery, queryParams);
+
+        // ২. যদি অফারটি একটিভ থাকে, তবে মেইন প্রোডাক্ট টেবিলের দামও আপডেট হবে
+        if (status === 'active') {
+            await connection.query(
+                "UPDATE products SET offer_price = ? WHERE id = ?",
+                [offerPrice, productId]
+            );
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: "Offer updated successfully!" });
+    } catch (err) {
+        await connection.rollback();
+        res.status(500).json({ error: err.message });
+    } finally {
+        connection.release();
+    }
+});
+
 //Restaurant Registration API
 // All user
 app.get('/api/users', async (req, res) => {
@@ -1145,7 +1237,7 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
             FROM products p 
             LEFT JOIN product_images pi ON p.id = pi.product_id 
             LEFT JOIN offers o ON p.id = o.productId
-            WHERE p.restaurant_id = ? 
+            WHERE p.restaurant_id = ? AND p.is_available = 1  -- এখানে পরিবর্তন হয়েছে
             GROUP BY p.id 
             ORDER BY p.category ASC, p.id DESC`;
 
