@@ -114,6 +114,19 @@ const RestaurantPage = () => {
   }, [menuData, activeCategory, searchTerm, allProducts, offerProducts]);
 
   const handleAddToCart = async (product) => {
+    // If restaurant is off
+    if (profile?.is_online === 0) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'This restaurant is currently closed and not accepting orders.',
+        confirmButtonColor: '#e11d48', // rose-600
+        customClass: {
+          popup: 'rounded-[30px]',
+        }
+      });
+      return; 
+    }
     const cartItem = {
       id: product.id,
       name: product.display_name,
@@ -273,6 +286,17 @@ const RestaurantPage = () => {
                       )}
 
                       <button 
+                        
+                        disabled={product.is_available == 0 || profile?.is_online === 0} // If the restaurant is close or the product is currently not available
+                        onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} 
+                        className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all 
+                          ${(product.is_available == 0 || profile?.is_online === 0) ? 'bg-slate-200 cursor-not-allowed text-slate-400' : 
+                            (tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white')}`}
+                    >
+                        {product.is_available == 0 ? <FaTimes /> : (profile?.is_online === 0 ? <FaTimes /> : (tickedId === product.id ? <FaCheck /> : <FaPlus />))}
+                    </button>
+
+                      {/*<button 
                           disabled={product.is_available == 0} 
                           onClick={(e) => { e.stopPropagation(); handleAddToCart(product); }} 
                           className={`absolute bottom-4 right-4 w-12 h-12 rounded-2xl flex items-center justify-center shadow-2xl z-20 transition-all 
@@ -280,7 +304,7 @@ const RestaurantPage = () => {
                               (tickedId === product.id ? 'green-pop' : 'bg-white text-slate-900 hover:bg-slate-900 hover:text-white')}`}
                         >
                           {product.is_available == 0 ? <FaTimes /> : (tickedId === product.id ? <FaCheck /> : <FaPlus />)}
-                      </button>
+                      </button>*/}
                     </div>
                     <div className="mt-5 px-2">
                       <h4 className="text-xl font-black text-slate-800 italic truncate">{product.display_name}</h4>

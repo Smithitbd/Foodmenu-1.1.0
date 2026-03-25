@@ -643,9 +643,9 @@ const checkOfficialTime = (openingTime, closingTime) => {
     const open = timeToMinutes(openingTime);
     let close = timeToMinutes(closingTime);
 
-    if (close === 0) close = 1440; // রাত ১২টা মানে ১৪৪০ মিনিট
+    if (close === 0) close = 1440; // 00.00 am
 
-    if (close < open) { // যদি ক্লোজিং টাইম পরদিন ভোরে হয়
+    if (close < open) { 
         return current >= open || current <= close;
     }
     return current >= open && current <= close;
@@ -662,7 +662,7 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
         if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
         let restaurant = resRows[0];
 
-        // --- স্মার্ট লজিক (অটো ওপেন এবং অটো ক্লোজ) ---
+        // Logic for open and close
         const now = new Date();
         const bstTime = now.toLocaleTimeString('en-GB', { 
             timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
@@ -671,20 +671,17 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
         const dbOpeningTime = restaurant.opening_time.substring(0, 5); // উদা: "09:00"
         const dbClosingTime = restaurant.closing_time.substring(0, 5); // উদা: "23:00"
 
-        // ১. অটোমেটিক ওপেন লজিক: 
-        // যদি এখন ঠিক ওপেনিং টাইম হয় এবং দোকান অফ থাকে, তবে অন করো
+        // Automatic open
         if (bstTime === dbOpeningTime && restaurant.is_online === 0) {
             await db.query("UPDATE restaurants SET is_online = 1 WHERE id = ?", [resId]);
             restaurant.is_online = 1;
         }
 
-        // ২. অটোমেটিক ক্লোজ লজিক: 
-        // যদি এখন ঠিক ক্লোজিং টাইম হয় এবং দোকান অন থাকে, তবে অফ করো
+        // Automatic closing
         if (bstTime === dbClosingTime && restaurant.is_online === 1) {
             await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
             restaurant.is_online = 0;
         }
-        // --- স্মার্ট লজিক শেষ ---
 
         const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
         const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
@@ -1377,9 +1374,9 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
 
         // ১. রেস্টুরেন্টের প্রোফাইল ডাটা এবং ডেলিভারি এরিয়া আনা
         const [restaurantRows] = await db.query(
-            `SELECT id, restaurant_name, location, logo, bg_image, contact_mobile, status 
-             FROM restaurants WHERE slug = ?`, [slug]
-        );
+        `SELECT id, restaurant_name, location, logo, bg_image, contact_mobile, status, is_online 
+        FROM restaurants WHERE slug = ?`, [slug]
+    );
 
         if (restaurantRows.length === 0) {
             return res.status(404).json({ message: "Restaurant not found" });
