@@ -487,9 +487,19 @@ app.delete('/api/delete-category/:id', async (req, res) => {
 // --- STATUS UPDATES ---
 app.put('/api/update-store-status/:resId', async (req, res) => {
     try {
-        await db.query("UPDATE restaurants SET status = ? WHERE id = ?", [req.body.status, req.params.resId]);
-        res.json({ message: "Status updated" });
-    } catch (err) { res.status(500).json(err); }
+        const { status } = req.body; 
+        const isOnline = (status === 'active') ? 1 : 0;
+        
+        // ডাটাবেস আপডেট
+        const [result] = await db.query(
+            "UPDATE restaurants SET is_online = ? WHERE id = ?", 
+            [isOnline, req.params.resId]
+        );
+        
+        res.json({ success: true, message: "Status updated successfully" });
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 app.patch('/api/update-food-status/:id', async (req, res) => {
@@ -617,43 +627,189 @@ app.get('/api/restaurant-locations', async (req, res) => {
 });
 
 // --- DASHBOARD STATS ---
-app.get('/api/dashboard-stats/:resId', async (req, res) => { 
+//Helper Function
+const timeToMinutes = (timeStr) => {
+    if (!timeStr) return 0;
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+};
+
+const checkOfficialTime = (openingTime, closingTime) => {
+    const now = new Date();
+    const bstTime = now.toLocaleTimeString('en-GB', { 
+        timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
+    });
+    const current = timeToMinutes(bstTime);
+    const open = timeToMinutes(openingTime);
+    let close = timeToMinutes(closingTime);
+
+    if (close === 0) close = 1440; // রাত ১২টা মানে ১৪৪০ মিনিট
+
+    if (close < open) { // যদি ক্লোজিং টাইম পরদিন ভোরে হয়
+        return current >= open || current <= close;
+    }
+    return current >= open && current <= close;
+};
+
+app.get('/api/dashboard-stats/:resId', async (req, res) => {
     try {
         const { resId } = req.params;
-        const [resInfo] = await db.query("SELECT restaurant_name, status FROM restaurants WHERE id = ?", [resId]);
+        const [resRows] = await db.query(
+            "SELECT id, restaurant_name, is_online, opening_time, closing_time FROM restaurants WHERE id = ?", 
+            [resId]
+        );
+        
+        if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
+        let restaurant = resRows[0];
+
+        // --- স্মার্ট লজিক (অটো ওপেন এবং অটো ক্লোজ) ---
+        const now = new Date();
+        const bstTime = now.toLocaleTimeString('en-GB', { 
+            timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
+        });
+
+        const dbOpeningTime = restaurant.opening_time.substring(0, 5); // উদা: "09:00"
+        const dbClosingTime = restaurant.closing_time.substring(0, 5); // উদা: "23:00"
+
+        // ১. অটোমেটিক ওপেন লজিক: 
+        // যদি এখন ঠিক ওপেনিং টাইম হয় এবং দোকান অফ থাকে, তবে অন করো
+        if (bstTime === dbOpeningTime && restaurant.is_online === 0) {
+            await db.query("UPDATE restaurants SET is_online = 1 WHERE id = ?", [resId]);
+            restaurant.is_online = 1;
+        }
+
+        // ২. অটোমেটিক ক্লোজ লজিক: 
+        // যদি এখন ঠিক ক্লোজিং টাইম হয় এবং দোকান অন থাকে, তবে অফ করো
+        if (bstTime === dbClosingTime && restaurant.is_online === 1) {
+            await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
+            restaurant.is_online = 0;
+        }
+        // --- স্মার্ট লজিক শেষ ---
+
         const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
         const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
         const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        
-        // Weekly Sales Query: গত ৭ দিনের ডেটা আনা হচ্ছে
-        const [weeklySalesRows] = await db.query(`
-            SELECT 
-                DATE_FORMAT(created_at, '%a') as day, 
-                SUM(total_amount) as total 
-            FROM orders 
-            WHERE restaurant_id = ? 
-            AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
-            GROUP BY DATE(created_at), day
-            ORDER BY DATE(created_at) ASC
-        `, [resId]);
-
+        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
         const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
 
         res.json({
-            name: resInfo[0]?.restaurant_name || "Restaurant",
-            status: resInfo[0]?.status || "inactive",
+            name: restaurant.restaurant_name,
+            status: restaurant.is_online === 1 ? 'active' : 'inactive',
+            is_manual_online: restaurant.is_online,
+            opening_time: restaurant.opening_time,
+            closing_time: restaurant.closing_time,
             totalMenu: menuCount[0]?.total || 0,
             activeOrders: orders[0]?.active || 0,
             todayEarning: earnings[0]?.todayTotal || 0,
             avgRating: 4.8,
-            weeklySales: weeklySalesRows, // এখানে এখন [{day: 'Mon', total: 500}, ...] ফরম্যাটে ডেটা যাবে
-            incomingOrders: latestOrders
+            weeklySales: weeklySalesRows,
+            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Internal Error" });
+    }
+});
+
+/*Auto off
+app.get('/api/dashboard-stats/:resId', async (req, res) => {
+    try {
+        const { resId } = req.params;
+        const [resRows] = await db.query(
+            "SELECT id, restaurant_name, is_online, opening_time, closing_time FROM restaurants WHERE id = ?", 
+            [resId]
+        );
+        
+        if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
+        let restaurant = resRows[0];
+
+        // --- স্মার্ট লজিক আপডেট ---
+        const now = new Date();
+        const bstTime = now.toLocaleTimeString('en-GB', { 
+            timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
+        });
+
+        // যদি বর্তমান সময় ঠিক ক্লোজিং টাইমের সমান হয়, তবেই কেবল অটো অফ করো
+        // substrings(0,5) নিচ্ছি কারণ ডাটাবেসে সময় 15:51:00 থাকে, আমরা কেবল 15:51 মেলাবো
+        const dbClosingTime = restaurant.closing_time.substring(0, 5);
+
+        if (bstTime === dbClosingTime && restaurant.is_online === 1) {
+            await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
+            restaurant.is_online = 0;
+        }
+        // --- স্মার্ট লজিক শেষ ---
+
+        // বাকি কুয়েরি আগের মতোই থাকবে...
+        const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
+        const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
+        const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
+        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
+        const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
+
+        res.json({
+            name: restaurant.restaurant_name,
+            status: restaurant.is_online === 1 ? 'active' : 'inactive',
+            is_manual_online: restaurant.is_online,
+            opening_time: restaurant.opening_time,
+            closing_time: restaurant.closing_time,
+            totalMenu: menuCount[0]?.total || 0,
+            activeOrders: orders[0]?.active || 0,
+            todayEarning: earnings[0]?.todayTotal || 0,
+            avgRating: 4.8,
+            weeklySales: weeklySalesRows,
+            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Internal Error" });
+    }
+});*/
+
+/*app.get('/api/dashboard-stats/:resId', async (req, res) => {
+    try {
+        const { resId } = req.params;
+        const [resRows] = await db.query(
+            "SELECT id, restaurant_name, is_online, opening_time, closing_time FROM restaurants WHERE id = ?", 
+            [resId]
+        );
+        
+        if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
+        let restaurant = resRows[0];
+
+        // --- স্মার্ট লজিক শুরু ---
+        const isOfficialTime = checkOfficialTime(restaurant.opening_time, restaurant.closing_time);
+
+        // রিকয়ারমেন্ট: ক্লোজিং টাইমের সমান বা পার হয়ে গেলে অটো অফ হবে
+        if (!isOfficialTime && restaurant.is_online === 1) {
+            // টাইম শেষ কিন্তু বাটন এখনো অন, তাই ডাটাবেসে অফ করে দাও
+            await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
+            restaurant.is_online = 0; // রেসপন্সের জন্য আপডেট করে নিলাম
+        }
+        // --- স্মার্ট লজিক শেষ ---
+
+        // ড্যাশবোর্ডের বাকি ডাটা কুয়েরি
+        const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
+        const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
+        const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
+        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
+        const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
+
+        res.json({
+            name: restaurant.restaurant_name,
+            status: restaurant.is_online === 1 ? 'active' : 'inactive', // এটাই "Accepting Orders" দেখাবে
+            is_manual_online: restaurant.is_online, // বাটনের স্টেটের জন্য
+            opening_time: restaurant.opening_time,
+            closing_time: restaurant.closing_time,
+            totalMenu: menuCount[0]?.total || 0,
+            activeOrders: orders[0]?.active || 0,
+            todayEarning: earnings[0]?.todayTotal || 0,
+            avgRating: 4.8,
+            weeklySales: weeklySalesRows,
+            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
         });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: "Internal Server Error" });
+        res.status(500).json({ error: "Internal Error" });
     }
-});
+});*/
 
 app.get('/api/inventory/:resId', async (req, res) => {
     try {
@@ -679,7 +835,7 @@ app.put('/api/restaurant/update-all/:id', upload.fields([
     { name: 'cover', maxCount: 1 }
 ]), async (req, res) => {
     const { id } = req.params;
-    const { restaurant_name, location, contact_mobile, slug } = req.body;
+    const { restaurant_name, location, contact_mobile, slug, opening_time, closing_time } = req.body;
     const files = req.files;
 
     try {
@@ -725,8 +881,18 @@ app.put('/api/restaurant/update-all/:id', upload.fields([
         }
 
         // ৪. ডাটাবেস আপডেট
-        const sql = "UPDATE restaurants SET restaurant_name=?, location=?, contact_mobile=?, slug=?, logo=?, bg_image=? WHERE id=?";
-        await db.query(sql, [restaurant_name, location, contact_mobile, slug, currentLogo, currentCover, id]);
+        const sql = "UPDATE restaurants SET restaurant_name=?, location=?, contact_mobile=?, slug=?, logo=?, bg_image=?, opening_time=?, closing_time=? WHERE id=?";
+        await db.query(sql, [
+            restaurant_name, 
+            location, 
+            contact_mobile, 
+            slug, 
+            currentLogo, 
+            currentCover, 
+            opening_time, 
+            closing_time, 
+            id
+        ]);
 
         res.json({ success: true, message: "Store updated successfully!" });
 
