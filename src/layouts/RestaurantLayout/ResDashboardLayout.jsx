@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Store, MapPin, PlusCircle, Utensils, 
   ShoppingCart, CheckCircle, BarChart3, Gift, UserCircle, 
   Menu, X, ChevronDown, Settings, LogOut, 
-  Edit, List, Plus, FileText, PieChart, Armchair 
+  Edit, List, Plus, FileText, PieChart, Armchair, Bell 
 } from 'lucide-react';
 import logoImg from '../../assets/foodmenu.png'; 
 import Footer from '../../../src/Components/Shared/Restaurant/RestaurantFooter'
@@ -21,14 +21,37 @@ const DashboardLayout = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isTableOpen, setIsTableOpen] = useState(false); 
 
+  // --- Notification State ---
+  const [hasNewOrder, setHasNewOrder] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ইউজার রোল রিট্রিভ করা
   const userRole = localStorage.getItem('userRole'); 
-
+  const restaurantId = localStorage.getItem('resId');
   const [resName, setResName] = useState(localStorage.getItem('resName'));
   const [resLogo, setResLogo] = useState(localStorage.getItem('resLogo'));
+
+  // নোটিফিকেশন চেক করার ফাংশন
+  const checkNewOrders = async () => {
+    if (!restaurantId) return;
+    try {
+      const response = await axios.get(`http://localhost:5000/api/orders/${restaurantId}`);
+      // চেক করা হচ্ছে কোনো 'pending' এবং অনলাইন টাইপ অর্ডার আছে কিনা (pos বাদে)
+      const pendingOrders = response.data.filter(order => 
+        order.order_status === 'pending' && order.order_type !== 'Offline'
+      );
+      
+      // যদি পেন্ডিং অর্ডার থাকে এবং ইউজার বর্তমানে কার্ট পেজে না থাকে, তবে বেল দেখাবে
+      if (pendingOrders.length > 0 && location.pathname !== '/restaurantadmin/cart') {
+        setHasNewOrder(true);
+      } else {
+        setHasNewOrder(false);
+      }
+    } catch (error) {
+      console.error("Notification Check Error:", error);
+    }
+  };
 
   useEffect(() => {
     const syncDashboard = async () => {
@@ -47,7 +70,12 @@ const DashboardLayout = () => {
       }
     };
     syncDashboard();
-  }, []);
+
+    // প্রতি ১০ সেকেন্ডে নোটিফিকেশন চেক করবে
+    checkNewOrders();
+    const intervalId = setInterval(checkNewOrders, 10000);
+    return () => clearInterval(intervalId);
+  }, [restaurantId, location.pathname]); // location.pathname যোগ করা হয়েছে যাতে পেজ চেঞ্জ হলে বেল আপডেট হয়
 
   const restaurantInfo = {
     name: resName,
@@ -77,7 +105,7 @@ const DashboardLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F1F5F9] font-sans overflow-hidden">
+    <div className="flex h-screen bg-[#F1F5F9] font-sans overflow-hidden border-none">
       
       {/* --- SIDEBAR --- */}
       <aside className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-[#1E293B] text-gray-300 transition-all duration-300 flex flex-col shadow-2xl z-50`}>
@@ -261,13 +289,34 @@ const DashboardLayout = () => {
       </aside>
 
       {/* --- MAIN CONTENT --- */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 border-none">
         <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-8 shadow-sm z-40">
           <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 bg-gray-50 text-gray-500 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all border border-gray-100">
             {isSidebarOpen ? <X size={20}/> : <Menu size={20}/>}
           </button>
 
+          {/* --- Right Section (Notification + Profile) --- */}
           <div className="flex items-center gap-6">
+            
+            {/* --- NOTIFICATION BELL (Winking/Pinging Style) --- */}
+            {hasNewOrder && (
+              <button 
+                onClick={() => { navigate('/restaurantadmin/cart'); setHasNewOrder(false); }}
+                className="relative p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-all border border-red-100 animate-bounce"
+                title="New Online Orders!"
+              >
+                {/* Winking Effect (Using fill) */}
+                <Bell size={20} fill="currentColor" />
+                
+                {/* Ping/Pulse Red Dot */}
+                <span className="absolute top-1 right-1 flex h-3.5 w-3.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-600"></span>
+                </span>
+              </button>
+            )}
+
+            {/* --- PROFILE SECTION --- */}
             <div className="relative">
               <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer group p-1 hover:bg-gray-50 rounded-2xl transition-all">
                 <div className="text-right hidden sm:block">
@@ -297,7 +346,6 @@ const DashboardLayout = () => {
 
         <main className="flex-1 overflow-y-auto p-8 bg-[#F8FAFC]">
           <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-            {/* ফিক্সড: ডাটা Array আকারে পাঠানো হচ্ছে যাতে চাইল্ড কম্পোনেন্ট এরর না দেয় */}
             <Outlet context={[isStoreOpen, setIsStoreOpen, userRole]} />
           </div> 
           <Footer />

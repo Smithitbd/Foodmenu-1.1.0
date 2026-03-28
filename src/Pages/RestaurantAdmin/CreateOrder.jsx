@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Printer, Save, Calendar, User, Phone, MapPin } from 'lucide-react';
+import { Plus, Trash2, Printer, Save, Calendar, User, Phone, MapPin, LayoutGrid } from 'lucide-react';
 import Swal from 'sweetalert2';
 import axios from 'axios'; 
 
@@ -13,7 +13,8 @@ const CreateOrder = () => {
   const resAddress = localStorage.getItem('restaurantAddress') || "Address not available";
 
   const [inventoryItems, setInventoryItems] = useState([]);
-  const [customer, setCustomer] = useState({ name: '', mobile: '', address: '', date: today });
+  const [tables, setTables] = useState([]); // টেবিল লিস্টের জন্য স্টেট
+  const [customer, setCustomer] = useState({ name: '', mobile: '', address: '', date: today, table_id: '' });
   const [orderItems, setOrderItems] = useState([{ searchItem: '', searchId: '', price: 0, quantity: 1, total: 0 }]);
   
   const [discount, setDiscount] = useState(0);
@@ -22,20 +23,24 @@ const CreateOrder = () => {
   const [subscription, setSubscription] = useState('Paid'); 
   const [reference, setReference] = useState('');
 
-  // Fetch Inventory
+  // Fetch Inventory & Tables
   useEffect(() => {
-    const fetchInventory = async () => {
+    const fetchData = async () => {
       try {
         if (restaurantId) {
-          // আপনার নতুন এপিআই লজিক অনুযায়ী এখান থেকেই অফার প্রাইস চলে আসবে
-          const res = await axios.get(`http://localhost:5000/api/inventory/${restaurantId}`);
-          setInventoryItems(res.data);
+          // ইনভেন্টরি এবং টেবিল লিস্ট একসাথে কল করা হচ্ছে
+          const [invRes, tableRes] = await Promise.all([
+            axios.get(`http://localhost:5000/api/inventory/${restaurantId}`),
+            axios.get(`http://localhost:5000/api/get-tables/${restaurantId}`)
+          ]);
+          setInventoryItems(invRes.data);
+          setTables(tableRes.data);
         }
       } catch (err) {
-        console.error("Inventory load failed", err);
+        console.error("Data load failed", err);
       }
     };
-    fetchInventory();
+    fetchData();
   }, [restaurantId]);
 
   const subTotal = useMemo(() => orderItems.reduce((acc, curr) => acc + curr.total, 0), [orderItems]);
@@ -52,7 +57,6 @@ const CreateOrder = () => {
     const item = inventoryItems.find(i => i.name === selectedName);
     const list = [...orderItems];
     if (item) {
-      // এখানে item.price হিসেবে অটোমেটিক অফার প্রাইস সেট হবে (যদি অফার থাকে)
       list[index] = { 
         ...list[index], 
         searchItem: item.name, 
@@ -99,17 +103,18 @@ const CreateOrder = () => {
       const payload = {
         restaurant_id: restaurantId,
         customer,
+        order_type: 'Offline', // যেহেতু এটা ক্রিয়েট অর্ডার পেজ থেকে হচ্ছে, তাই টাইপ অফলাইন
         items: validItems,
         billing: { 
           subTotal, 
           discount, 
           finalTotal, 
-          paidAmount: subscription === 'Paid' ? finalTotal : paidAmount, // Paid হলে ফুল এমাউন্ট সেভ হবে
+          paidAmount: subscription === 'Paid' ? finalTotal : paidAmount,
           dueAmount: subscription === 'Paid' ? 0 : dueAmount 
         },
         payment: { paymentMethod },
         subscription: { 
-          status: subscription, 
+          status: subscription === 'Paid' ? 'delivered' : 'pending', // পেইড হলে সরাসরি ডেলিভারড
           reference: subscription === 'Due' ? reference : '' 
         }
       };
@@ -119,7 +124,7 @@ const CreateOrder = () => {
         Swal.fire({
           icon: 'success',
           title: 'Order Saved!',
-          text: `Invoice ID: ${response.data.orderId}`,
+          text: `Invoice ID: ${response.data.orderId} | Table: ${customer.table_id || 'N/A'}`,
           confirmButtonColor: '#d33'
         }).then(() => {
           window.location.reload();
@@ -133,7 +138,7 @@ const CreateOrder = () => {
 
   return (
     <div className="bg-gray-50 min-h-screen p-4 font-sans">
-      <style>{`@media print { .no-print { display: none !important; } .print-area { box-shadow: none !important; border: none !important; width: 100% !important; } }`}</style>
+      <style>{`@media print { .no-print { display: none !important; } .print-area { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; padding: 0 !important;} }`}</style>
 
       <div className="max-w-6xl mx-auto bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border-t-[12px] border-red-600 print-area">
         <div className="p-8">
@@ -144,32 +149,44 @@ const CreateOrder = () => {
               <p className="text-gray-400 font-bold text-xs italic">{resAddress}</p>
             </div>
             <div className="text-right">
-              <p className="text-[10px] font-black uppercase text-gray-400">Order Receipt</p>
+              <p className="text-[10px] font-black uppercase text-gray-400">POS - Offline Receipt</p>
               <p className="font-bold text-gray-700">#ORD-{Math.floor(Date.now()/100000)}</p>
+              {customer.table_id && <p className="text-red-600 font-black uppercase text-sm">Table: {customer.table_id}</p>}
             </div>
           </div>
 
-          {/* Customer Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
-                <User size={18} className="text-gray-400"/>
-                <input type="text" placeholder="Customer Name" className="bg-transparent w-full outline-none" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} />
-              </div>
-              <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
-                <MapPin size={18} className="text-gray-400"/>
-                <input type="text" placeholder="Delivery Address" className="bg-transparent w-full outline-none" value={customer.address} onChange={(e) => setCustomer({...customer, address: e.target.value})} />
-              </div>
+          {/* Customer & Table Section */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+            <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
+              <User size={18} className="text-gray-400"/>
+              <input type="text" placeholder="Customer Name" className="bg-transparent w-full outline-none" value={customer.name} onChange={(e) => setCustomer({...customer, name: e.target.value})} />
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
-                <Phone size={18} className="text-gray-400"/>
-                <input type="text" placeholder="Mobile Number" className="bg-transparent w-full outline-none" value={customer.mobile} onChange={(e) => setCustomer({...customer, mobile: e.target.value})} />
-              </div>
-              <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-xl border">
-                <Calendar size={18} className="text-gray-400"/>
-                <input type="date" className="bg-transparent w-full outline-none" value={customer.date} readOnly />
-              </div>
+            <div className="flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
+              <Phone size={18} className="text-gray-400"/>
+              <input type="text" placeholder="Mobile Number" className="bg-transparent w-full outline-none" value={customer.mobile} onChange={(e) => setCustomer({...customer, mobile: e.target.value})} />
+            </div>
+            <div className="flex items-center gap-2 bg-red-50 p-3 rounded-xl border border-red-100">
+              <LayoutGrid size={18} className="text-red-500"/>
+              <select 
+                className="bg-transparent w-full outline-none font-bold text-red-600 appearance-none cursor-pointer" 
+                value={customer.table_id} 
+                onChange={(e) => setCustomer({...customer, table_id: e.target.value})}
+              >
+                <option value="">Select Table (Optional)</option>
+                {tables.map(t => (
+                  <option key={t.id} value={`Table - ${t.table_number}`}>
+                    Table - {t.table_number} ({t.is_available ? 'Available' : 'Busy'})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2 flex items-center gap-2 bg-gray-50 p-3 rounded-xl border">
+              <MapPin size={18} className="text-gray-400"/>
+              <input type="text" placeholder="Note / Address" className="bg-transparent w-full outline-none" value={customer.address} onChange={(e) => setCustomer({...customer, address: e.target.value})} />
+            </div>
+            <div className="flex items-center gap-2 bg-gray-100 p-3 rounded-xl border">
+              <Calendar size={18} className="text-gray-400"/>
+              <input type="date" className="bg-transparent w-full outline-none" value={customer.date} readOnly />
             </div>
           </div>
 
@@ -189,7 +206,7 @@ const CreateOrder = () => {
                 {orderItems.map((item, index) => (
                   <tr key={index} className="border-b hover:bg-gray-50">
                     <td className="p-4">
-                      <select className="w-full bg-transparent border-none outline-none font-semibold appearance-none" value={item.searchItem} onChange={(e) => handleItemChange(index, e.target.value)}>
+                      <select className="w-full bg-transparent border-none outline-none font-semibold cursor-pointer" value={item.searchItem} onChange={(e) => handleItemChange(index, e.target.value)}>
                         <option value="">Choose Food...</option>
                         {inventoryItems.map(inv => <option key={inv.id} value={inv.name}>{inv.name}</option>)}
                       </select>
@@ -225,25 +242,24 @@ const CreateOrder = () => {
               </div>
 
               <div>
-                <h4 className="text-xs font-black uppercase text-gray-400 mb-3">Order Status</h4>
+                <h4 className="text-xs font-black uppercase text-gray-400 mb-3">Billing Status</h4>
                 <div className="flex gap-4">
                   {['Paid', 'Due'].map(s => (
-                    <button key={s} onClick={() => setSubscription(s)} className={`flex-1 py-3 rounded-xl font-bold transition-all ${subscription === s ? 'bg-gray-800 text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}>{s}</button>
+                    <button key={s} onClick={() => setSubscription(s)} className={`flex-1 py-3 rounded-xl font-bold transition-all ${subscription === s ? 'bg-gray-900 text-white shadow-lg' : 'bg-gray-100 text-gray-500'}`}>{s}</button>
                   ))}
                 </div>
               </div>
 
               {subscription === 'Due' && (
-                <div className="animate-in fade-in duration-500">
+                <div className="animate-in fade-in slide-in-from-top-2 duration-300">
                   <h4 className="text-xs font-black uppercase text-red-500 mb-2">Reference / Due Holder Name *</h4>
-                  <input type="text" placeholder="Who is taking this due?" className="w-full p-4 border-2 border-red-100 rounded-2xl outline-none focus:border-red-500 font-bold" value={reference} onChange={(e) => setReference(e.target.value)} />
+                  <input type="text" placeholder="Enter Ref Name" className="w-full p-4 border-2 border-red-100 rounded-2xl outline-none focus:border-red-500 font-bold" value={reference} onChange={(e) => setReference(e.target.value)} />
                 </div>
               )}
             </div>
 
             {/* Calculations Box */}
             <div className="bg-gray-900 rounded-[2.5rem] p-10 text-white shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/10 rounded-full -mr-16 -mt-16"></div>
               <div className="space-y-4 relative z-10">
                 <div className="flex justify-between text-gray-400 font-bold"><span>SubTotal</span><span>৳{subTotal}</span></div>
                 <div className="flex justify-between items-center text-red-400">
@@ -271,7 +287,6 @@ const CreateOrder = () => {
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="flex justify-end gap-4 mt-12 no-print">
             <button onClick={handlePrint} className="flex items-center gap-2 px-8 py-4 bg-gray-100 rounded-xl font-bold hover:bg-gray-200 transition-all"><Printer size={18}/> Print</button>
             <button onClick={handleSave} className="flex items-center gap-2 px-12 py-4 bg-red-600 text-white rounded-xl font-black uppercase tracking-widest shadow-xl hover:bg-red-700 active:scale-95 transition-all">

@@ -6,11 +6,13 @@ import Features from './Features'
 import ExploreArea from './ExploreArea'
 import HowToMakeMenu from './HowToMakeMenu'
 import AddYourRestaurant from './AddYourRestaurant'
+import OrderTrackerWidget from '../../Components/Button/OrderTrackerSticky'
 
 const Home = () => {
   return (
     <>
       <Header />
+      < OrderTrackerWidget/>
       <TopMenu />
       <Features />
       <ExploreArea/>

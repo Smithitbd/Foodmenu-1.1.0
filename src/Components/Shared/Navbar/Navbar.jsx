@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import logo from "../../../assets/foodmenu.png";
-import OrderTrackerWidget from "../../Button/OrderTrackerSticky";
+//import OrderTrackerWidget from "../../Button/OrderTrackerSticky";
 
 const Navbar = () => {
   return (
@@ -31,9 +31,9 @@ const Navbar = () => {
           </div>
 
           
-          <div className="flex-shrink-0 flex items-center animate-in fade-in slide-in-from-right-5 duration-1000">
+         {/* <div className="flex-shrink-0 flex items-center animate-in fade-in slide-in-from-right-5 duration-1000">
             <OrderTrackerWidget />
-          </div>
+          </div> */}
 
         </div>
       </div>

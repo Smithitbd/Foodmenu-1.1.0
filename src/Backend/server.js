@@ -517,7 +517,7 @@ app.patch('/api/update-all-status', async (req, res) => {
 });
 
 // --- ORDER APIS ---
-app.post('/api/save-order', async (req, res) => {
+/*app.post('/api/save-order', async (req, res) => {
     try {
         const { customer, items, billing, payment, subscription, restaurant_id } = req.body;
         const [orderResult] = await db.query(
@@ -531,10 +531,69 @@ app.post('/api/save-order', async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: "Order failed", error: error.message });
     }
+});*/
+app.post('/api/save-order', async (req, res) => {
+    try {
+        const { customer, items, billing, payment, subscription, restaurant_id, order_type } = req.body;
+        
+        // table_id এবং order_type সহ ইনসার্ট কুয়েরি
+        const [orderResult] = await db.query(
+            `INSERT INTO orders (
+                restaurant_id, 
+                customer_name, 
+                customer_phone, 
+                customer_address, 
+                subtotal, 
+                discount, 
+                total_amount, 
+                paid_amount, 
+                due_amount, 
+                payment_method, 
+                order_status, 
+                reference, 
+                order_type, 
+                table_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                restaurant_id, 
+                customer.name, 
+                customer.mobile, 
+                customer.address, 
+                billing.subTotal, 
+                billing.discount, 
+                billing.finalTotal, 
+                billing.paidAmount, 
+                billing.dueAmount, 
+                payment.paymentMethod, 
+                subscription.status, 
+                subscription.reference || null, 
+                order_type || 'Offline', // ফ্রন্টএন্ড থেকে অফলাইন পাঠানো হয়েছে
+                customer.table_id || null // সিলেক্ট করা টেবিল আইডি
+            ]
+        );
+
+        const orderId = orderResult.insertId;
+        const itemValues = items.map(item => [orderId, item.searchId, item.quantity, item.price, item.total]);
+        
+        await db.query(`INSERT INTO order_items (order_id, product_id, quantity, price, total_price) VALUES ?`, [itemValues]);
+        
+        res.status(201).json({ message: "Order saved!", orderId });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Order failed", error: error.message });
+    }
 });
 
 app.get('/api/orders/:resId', async (req, res) => {
     try {
+        const [rows] = await db.query("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY id DESC", [req.params.resId]);
+        res.json(rows);
+    } catch (err) { res.status(500).json({ error: "Failed to fetch orders" }); }
+});
+
+app.get('/api/orders/:resId', async (req, res) => {
+    try {
+        // এখানে orders টেবিলের সব কলাম (id, table_id, order_type সহ) আসছে
         const [rows] = await db.query("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY id DESC", [req.params.resId]);
         res.json(rows);
     } catch (err) { res.status(500).json({ error: "Failed to fetch orders" }); }
@@ -561,6 +620,19 @@ app.get('/api/order-details/:orderId', async (req, res) => {
         const [orderInfo] = await db.query(`SELECT * FROM orders WHERE id = ?`, [req.params.orderId]);
         res.json({ items, info: orderInfo[0] });
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.put('/api/orders/full-update/:id', async (req, res) => {
+    const { order_status, due_amount, reference, payment_date } = req.body;
+    try {
+        await db.query(
+            "UPDATE orders SET order_status = ?, due_amount = ?, reference = ?, payment_date = ? WHERE id = ?", 
+            [order_status, due_amount, reference, payment_date, req.params.id]
+        );
+        res.status(200).send("Order & Payment Updated Successfully");
+    } catch (err) { 
+        res.status(500).json({ error: err.message }); 
+    }
 });
 
 // --- CART & DELIVERY APIS ---
