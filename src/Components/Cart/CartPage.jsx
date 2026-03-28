@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useCart } from '../../../src/context/CartContext'; 
 import { 
   FaShoppingCart, FaPlus, FaPhoneAlt, FaSearch, 
-  FaArrowLeft, FaCheck, FaTimes, FaChevronDown, FaTag 
+  FaArrowLeft, FaCheck, FaTimes, FaChevronDown, FaTag, FaClock, FaCalendarDay 
 } from "react-icons/fa"; 
 import { FaLocationDot } from "react-icons/fa6"; 
 import Swal from 'sweetalert2';
@@ -47,7 +47,7 @@ const RestaurantPage = () => {
   }, [cartKey]);
 
   // --- API Fetch ---
-  useEffect(() => {
+  /*useEffect(() => {
     const fetchFullData = async () => {
       try {
         setLoading(true);
@@ -63,7 +63,52 @@ const RestaurantPage = () => {
       }
     };
     fetchFullData();
+  }, [restaurantSlug]);*/
+
+  // --- API Fetch Function ---
+  const fetchFullData = useCallback(async (isSilent = false) => {
+    try {
+      if (!isSilent) setLoading(true);
+      const response = await axios.get(`http://localhost:5000/api/public/restaurant/${restaurantSlug}`);
+      if (response.data) {
+        setProfile(response.data.profile);
+        setMenuData(response.data.menu || {});
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Restaurant not found");
+    } finally {
+      if (!isSilent) setTimeout(() => setLoading(false), 800);
+    }
   }, [restaurantSlug]);
+  
+  // --- Auto Refresh Logic (Every 10 Seconds) ---
+  useEffect(() => {
+    fetchFullData();
+    const interval = setInterval(() => {
+      fetchFullData(true); // Silent refresh in background
+    }, 10000); 
+    return () => clearInterval(interval);
+  }, [fetchFullData]);
+
+
+  // --- Opening Time Formatter ---
+  const getOpeningStatus = () => {
+    if (!profile?.opening_time) return "Check back soon";
+    
+    const [hours, minutes] = profile.opening_time.split(':');
+    const openTime = new Date();
+    openTime.setHours(parseInt(hours), parseInt(minutes), 0);
+
+    const timeString = openTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    
+    const now = new Date();
+    if (now > openTime) {
+      return `Opens Tomorrow at ${timeString}`;
+    }
+    return `Opens Today at ${timeString}`;
+  };
+
+    
   
   // ১. সব প্রোডাক্টকে এক লিস্টে আনা
   const allProducts = useMemo(() => {
@@ -117,13 +162,11 @@ const RestaurantPage = () => {
     // If restaurant is off
     if (profile?.is_online === 0) {
       Swal.fire({
-        icon: 'error',
-        title: 'Oops...',
-        text: 'This restaurant is currently closed and not accepting orders.',
-        confirmButtonColor: '#e11d48', // rose-600
-        customClass: {
-          popup: 'rounded-[30px]',
-        }
+        icon: 'warning',
+        title: 'Restaurant Closed',
+        text: `We are currently not taking orders. We will be back ${getOpeningStatus()}`,
+        confirmButtonColor: '#e11d48',
+        customClass: { popup: 'rounded-[30px]' }
       });
       return; 
     }
@@ -135,6 +178,7 @@ const RestaurantPage = () => {
       restaurant_id: profile?.id,
       restaurantSlug: restaurantSlug
     };
+
 
     const result = await addToCart(cartItem, restaurantSlug);
     
@@ -226,6 +270,26 @@ const RestaurantPage = () => {
             </a>
           </div>
         </div>
+
+        {/* --- RESTAURANT CLOSED ALERT --- */}
+        {profile?.is_online === 0 && (
+          <motion.div initial={{y: 20, opacity: 0}} animate={{y: 0, opacity: 1}} className="mt-8 bg-amber-50 border-2 border-amber-200 p-6 md:p-10 rounded-[40px] flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-amber-100">
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-amber-200 rounded-full flex items-center justify-center text-amber-700 animate-pulse">
+                <FaClock size={30} />
+              </div>
+              <div>
+                <h3 className="text-xl md:text-3xl font-black text-amber-900 uppercase italic tracking-tighter">We're Currently Resting</h3>
+                <p className="text-amber-700 font-bold uppercase text-[10px] md:text-xs tracking-widest mt-1 flex items-center gap-2">
+                  <FaCalendarDay /> {getOpeningStatus()}
+                </p>
+              </div>
+            </div>
+            <div className="text-center md:text-right">
+              <span className="bg-amber-200 text-amber-900 px-6 py-2 rounded-full font-black text-[10px] uppercase tracking-widest">Store Closed</span>
+            </div>
+          </motion.div>
+        )}
 
         <div className="flex flex-col lg:flex-row gap-8 mt-12 items-start">
           {/* Sidebar */}
