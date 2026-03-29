@@ -67,34 +67,40 @@ const Header = () => {
   return (
     <section className="relative min-h-screen bg-white font-['Gilroy'] overflow-x-hidden">
       
-      {/* Desktop Video Section */}
-      <div className="hidden lg:block absolute inset-0 z-0">
+      {/* Desktop Video Section - XL Screens */}
+      <div className="hidden xl:block absolute inset-0 z-0">
         <div 
-          className="absolute top-0 right-0 w-5/12 h-[80vh] overflow-hidden rounded-bl-[4rem] shadow-2xl bg-slate-100"
-          style={{ clipPath: 'polygon(15% 0%, 100% 0%, 100% 100%, 7% 100%)' }}
+          className="absolute top-0 right-0 w-[45%] h-screen overflow-hidden bg-slate-100 shadow-2xl"
+          style={{ 
+            // এটি ভিডিওর বাম পাশটিকে শার্প কোণাকুণি (Angled) করে দিবে, বাঁকানো নয়
+            clipPath: 'polygon(15% 0%, 100% 0%, 100% 100%, 0% 100%)' 
+          }}
         >
           <video autoPlay muted loop playsInline onCanPlayThrough={() => setVideoLoaded(true)}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}>
+            className={`absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}>
             <source src={Video} type="video/mp4" />
           </video>
+          
+          {/* ভিডিওর উপরে একটি হালকা লাল ওভারলে গ্রেডিয়েন্ট (ঐচ্ছিক, দেখতে ভালো লাগে) */}
+          <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-transparent z-10"></div>
         </div>
       </div>
 
       <div className="container mx-auto px-4 sm:px-6 lg:px-10 relative z-10">
-        <div className="flex flex-col lg:flex-row min-h-[90vh] pt-6 lg:pt-20 items-start lg:items-center">
+        <div className="flex flex-col xl:flex-row min-h-[90vh] pt-6 xl:pt-20 items-center xl:items-center">
           
-          {/* Mobile Video - Top Area */}
-          <div className="w-full lg:hidden order-1 mb-6">
-              <div className="relative w-full aspect-video rounded-[2.5rem] overflow-hidden shadow-2xl bg-slate-100 border-4 border-white">
+          {/* Mobile & Tablet Video - (Fixed Cropping) */}
+          <div className="w-full xl:hidden order-1 mb-8 mt-4">
+              <div className="relative w-full rounded-[2.5rem] overflow-hidden shadow-2xl bg-slate-100 border-4 border-white">
                 <video autoPlay muted loop playsInline onCanPlayThrough={() => setVideoLoaded(true)}
-                  className={`w-full h-full object-cover ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}>
+                  className={`w-full h-full object-contain ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}>
                   <source src={Video} type="video/mp4" />
                 </video>
               </div>
           </div>
 
           {/* Text & Search */}
-          <div className="w-full lg:w-7/12 flex flex-col justify-start text-center lg:text-left order-2">
+          <div className="w-full xl:w-7/12 flex flex-col justify-start text-center xl:text-left order-2">
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-500 text-sm sm:text-lg lg:text-xl font-bold mb-3 tracking-wide">
               Everything You Crave in One Place
             </motion.p>
@@ -110,7 +116,7 @@ const Header = () => {
             </h2>
 
             {/* Search Container */}
-            <div className="relative mx-auto lg:mx-0 w-full max-w-lg mb-10 z-[100]" ref={searchRef}>
+            <div className="relative mx-auto xl:mx-0 w-full max-w-lg mb-10 z-[100]" ref={searchRef}>
               <div className="relative group shadow-[0_20px_50px_rgba(239,68,68,0.12)] rounded-[2.2rem]">
                 <input
                   type="text"
@@ -184,7 +190,7 @@ const SuggestionItem = ({ restaurant, close }) => {
       <div className="relative w-14 h-14 shrink-0 bg-slate-100 rounded-[1rem] overflow-hidden shadow-sm border border-slate-200">
         {!imgLoaded && <div className="absolute inset-0 animate-shimmer bg-slate-200" />}
         <img
-          src={restaurant.pimage} // Backend এর ফরম্যাট অনুযায়ী
+          src={restaurant.pimage} 
           alt={restaurant.r_name}
           onLoad={() => setImgLoaded(true)}
           className={`w-full h-full object-cover transition-all duration-700 ${imgLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'}`}

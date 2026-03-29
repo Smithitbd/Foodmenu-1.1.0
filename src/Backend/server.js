@@ -8,12 +8,16 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import sharp from 'sharp';
+import nodemailer from'nodemailer';
+
 
 const app = express();
 const saltRounds = 10;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
+app.use(cors()); 
+app.use(express.json());
 
 // ফোল্ডার না থাকলে তৈরি করবে
 if (!fs.existsSync(uploadDir)) {
@@ -57,6 +61,15 @@ const db = mysql.createPool({
 }).promise();
 
 console.log('Successfully connected to the MySql Database via Pool!');
+
+// Nodemailer সেটআপ (ইমেইল পাঠানোর জন্য)
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: 'mkantidas138@gmail.com', 
+        pass: 'tmym zwgc lhom udnn'    // Generate app password from google
+    }
+});
 
 // --- BASIC ROUTES ---
 app.get('/', (req, res) => {
@@ -1861,7 +1874,7 @@ app.put('/api/update-table-status', (req, res) => {
 });
 
 // Message post for user
-app.post('/api/contact', (req, res) => {
+/*app.post('/api/contact', (req, res) => {
     const { name, email, subject, message } = req.body;
 
     if (!name || !email || !subject || !message) {
@@ -1877,10 +1890,10 @@ app.post('/api/contact', (req, res) => {
         }
         res.status(201).json({ success: true, message: "Your message has been saved!" });
     });
-});
+});*/
 
 // Superadmin read all messages
-app.get('/api/admin/messages', (req, res) => {
+/*app.get('/api/admin/messages', (req, res) => {
     const sqlQuery = "SELECT * FROM contact_messages ORDER BY created_at DESC";
 
     db.query(sqlQuery, (err, results) => {
@@ -1898,6 +1911,53 @@ app.put('/api/admin/messages/:id/read', (req, res) => {
     db.execute("UPDATE contact_messages SET is_read = TRUE WHERE id = ?", [id], (err, result) => {
         if (err) return res.status(500).json({ success: false });
         res.json({ success: true, message: "Marked as read" });
+    });
+});*/
+
+// Contact API
+app.post('/api/contact', (req, res) => {
+    const { name, email, subject, message } = req.body;
+
+    const sql = "INSERT INTO contact_messages (name, email, subject, message) VALUES (?, ?, ?, ?)";
+    
+    db.query(sql, [name, email, subject, message], (err, result) => {
+        if (err) {
+            console.error("Database Error:", err);
+            // ডাটাবেজে এরর হলে সাথে সাথে এরর রেসপন্স দিন
+            return res.status(500).json({ success: false, message: "Database Error" });
+        }
+
+        // --- মূল সমাধান এখানে ---
+        // ডাটাবেজে সেভ হয়ে গেছে, এখন সাথে সাথে ফ্রন্টএন্ডকে বলে দিন যে কাজ হয়েছে।
+        // এতে ফ্রন্টএন্ডের 'Pending' স্ট্যাটাস শেষ হবে এবং Success দেখাবে।
+        res.status(200).json({ success: true, message: "Success" });
+
+        // ইমেইল পাঠানোর কাজটা এর পরে হবে, যাতে দেরি হলেও ফ্রন্টএন্ড আটকে না থাকে
+        const mailOptions = {
+            from: 'mkantidas138@gmail.com',
+            to: 'info@smithitbd.com', 
+            subject: `Contact: ${subject}`,
+            html: `<h3>New Inquiry from ${name}</h3>
+                   <p>Email: ${email}</p>
+                   <p>Message: ${message}</p>`
+        };
+
+        transporter.sendMail(mailOptions, (error, info) => {
+            if (error) {
+                console.log("Email error (Backend logs only):", error.message);
+            } else {
+                console.log("Email sent successfully!");
+            }
+        });
+    });
+});
+
+// Admin Dashboard GET API
+app.get('/api/admin/messages', (req, res) => {
+    const sql = "SELECT * FROM contact_messages ORDER BY created_at DESC"; // contacts পাল্টে contact_messages দিন
+    db.query(sql, (err, results) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.status(200).json(results);
     });
 });
 
