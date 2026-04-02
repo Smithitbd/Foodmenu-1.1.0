@@ -66,6 +66,7 @@ const OrderList = lazy(() => import("./Pages/RestaurantAdmin/OrderList.jsx"));
 const MenuList = lazy(() => import("./Pages/RestaurantAdmin/MenuList.jsx"));
 const AddTable = lazy(() => import("./Pages/RestaurantAdmin/AddTable.jsx"));
 const TableList = lazy(() => import("./Pages/RestaurantAdmin/TableList.jsx"));
+const DownloadMenuPage = lazy(() => import("./Pages/RestaurantAdmin/DownloadMenuPage.jsx"));
 
 // Login Pages
 const LoginPage = lazy(() => import('./Pages/RestrurantLogin/LoginPage.jsx'));
@@ -177,7 +178,7 @@ const AppContent = () => {
                 <Route path="reports" element={<PageWrapper><ResReports /></PageWrapper>} />
                 <Route path="offers" element={<PageWrapper><ResOffers /></PageWrapper>} />
                 <Route path="registration" element={<PageWrapper><ResRegistration /></PageWrapper>} />
-                
+                <Route path="download-menu" element={<DownloadMenuPage />} />
                 <Route path="graph-report" element={<PageWrapper><GraphReport /></PageWrapper>} />
                 <Route path="table-report" element={<PageWrapper><TableReport /></PageWrapper>} />
                 <Route path="create-Order-List" element={<PageWrapper><CreateOrder /></PageWrapper>} />

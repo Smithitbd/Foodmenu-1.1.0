@@ -70,7 +70,7 @@ const Header = () => {
       {/* Desktop Video Section - XL Screens */}
       <div className="hidden xl:block absolute inset-0 z-0">
         <div 
-          className="absolute top-0 right-0 w-[45%] h-screen overflow-hidden bg-slate-100 shadow-2xl"
+          className="absolute top-0 right-0 w-[46%] h-[92%] overflow-hidden bg-slate-100 shadow-2xl"
           style={{ 
             // এটি ভিডিওর বাম পাশটিকে শার্প কোণাকুণি (Angled) করে দিবে, বাঁকানো নয়
             clipPath: 'polygon(15% 0%, 100% 0%, 100% 100%, 0% 100%)' 
@@ -100,7 +100,7 @@ const Header = () => {
           </div>
 
           {/* Text & Search */}
-          <div className="w-full xl:w-7/12 flex flex-col justify-start text-center xl:text-left order-2">
+          {/*<div className="w-full xl:w-7/12 flex flex-col justify-start text-center xl:text-left order-2">
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-gray-500 text-sm sm:text-lg lg:text-xl font-bold mb-3 tracking-wide">
               Everything You Crave in One Place
             </motion.p>
@@ -115,7 +115,7 @@ const Header = () => {
               </span>
             </h2>
 
-            {/* Search Container */}
+            {/* Search Container 
             <div className="relative mx-auto xl:mx-0 w-full max-w-lg mb-10 z-[100]" ref={searchRef}>
               <div className="relative group shadow-[0_20px_50px_rgba(239,68,68,0.12)] rounded-[2.2rem]">
                 <input
@@ -138,7 +138,7 @@ const Header = () => {
                 </div>
               </div>
 
-              {/* Suggestions Dropdown */}
+              {/* Suggestions Dropdown 
               <AnimatePresence>
                 {showSuggestions && (
                   <motion.div 
@@ -156,6 +156,89 @@ const Header = () => {
                         ))
                       ) : (
                         <div className="p-10 text-center text-slate-400 font-bold">
+                          No restaurants found.
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>*/}
+
+          {/* new mod */}
+          <div className="w-full xl:w-7/12 flex flex-col justify-start text-center xl:text-left order-2 px-2 sm:px-0">
+            {/* Top Small Text - Slightly Reduced */}
+            <motion.p 
+              initial={{ opacity: 0, y: -10 }} 
+              animate={{ opacity: 1, y: 0 }} 
+              className="text-gray-500 text-sm sm:text-lg lg:text-xl font-bold mb-3 tracking-wide uppercase"
+            >
+              Everything You Crave in One Place
+            </motion.p>
+            
+            {/* Main Title - Food Anytime (Balanced Size) */}
+            <h1 className="text-[2.8rem] sm:text-6xl md:text-7xl lg:text-[6rem] font-black text-slate-900 tracking-tighter leading-[0.9] sm:leading-none mb-2">
+              FOOD ANYTIME
+            </h1>
+            
+            {/* Subtitle - Crave It Find It (Balanced Size) */}
+            <h2 className="text-xl sm:text-4xl lg:text-[3.5rem] font-black mt-1 mb-8">
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-600 via-red-500 to-orange-500">
+                CRAVE IT? FIND IT!
+              </span>
+            </h2>
+
+            {/* Search Container - Adjusted Padding & Size */}
+            <div className="relative mx-auto xl:mx-0 w-full max-w-lg md:max-w-xl lg:max-w-2xl mb-10 z-[100]" ref={searchRef}>
+              <div className="relative group shadow-[0_20px_50px_rgba(239,68,68,0.15)] rounded-[2.2rem] transition-all duration-300">
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true); }}
+                  onFocus={() => setShowSuggestions(true)}
+                  placeholder={placeholder || "Search restaurants..."}
+                  // Py size changed from 8 to 5/6 for a cleaner look
+                  className="w-full pl-12 sm:pl-14 pr-24 py-4 sm:py-5 md:py-6 text-base sm:text-lg md:text-xl rounded-[2.2rem] bg-white border-2 border-transparent focus:border-red-200 focus:ring-4 ring-red-500/5 outline-none transition-all duration-300 text-slate-800 font-bold placeholder:text-gray-300"
+                />
+                
+                {/* Left Search Icon - Balanced */}
+                <MagnifyingGlassIcon className={`absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-5 h-5 sm:w-6 sm:h-6 transition-colors ${query ? 'text-red-500' : 'text-gray-400'}`} />
+
+                {/* Right Buttons Area */}
+                <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 sm:gap-2">
+                  {query && (
+                    <XMarkIcon 
+                      onClick={() => setQuery('')} 
+                      className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400 cursor-pointer hover:text-red-600 transition-all p-1" 
+                    />
+                  )}
+                  <button className="bg-red-600 hover:bg-slate-900 text-white p-3 sm:p-4 md:p-4.5 rounded-full transition-all duration-300 shadow-lg active:scale-95">
+                    <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Suggestions Dropdown - Balanced Padding & Text */}
+              <AnimatePresence>
+                {showSuggestions && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 15 }} 
+                    animate={{ opacity: 1, y: 0 }} 
+                    exit={{ opacity: 0, y: 10 }}
+                    className="absolute left-0 right-0 mt-3 bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.15)] border border-slate-50 z-[110] overflow-hidden"
+                  >
+                    <div className="max-h-[350px] md:max-h-[400px] overflow-y-auto py-4 no-scrollbar scroll-smooth px-1">
+                      {loading ? (
+                        <div className="p-10 text-center animate-pulse text-red-500 font-bold text-lg">
+                          Searching for restaurants...
+                        </div>
+                      ) : filtered.length > 0 ? (
+                        filtered.map((r) => (
+                          <SuggestionItem key={r.id} restaurant={r} close={() => setShowSuggestions(false)} />
+                        ))
+                      ) : (
+                        <div className="p-10 text-center text-slate-400 font-bold text-base">
                           No restaurants found.
                         </div>
                       )}

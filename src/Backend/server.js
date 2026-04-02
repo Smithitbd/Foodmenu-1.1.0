@@ -1961,6 +1961,121 @@ app.get('/api/admin/messages', (req, res) => {
     });
 });
 
+//API for Menu download
+/*app.get('/api/download-menu/:restaurant_id', async (req, res) => {
+    try {
+        const { restaurant_id } = req.params;
+
+        // প্রোডাক্ট এবং তার প্রথম ইমেজটি নিয়ে আসার কুয়েরি
+        const sql = `
+            SELECT 
+                p.id, 
+                p.name, 
+                p.price, 
+                p.category,
+                (SELECT image_path FROM product_images WHERE product_id = p.id LIMIT 1) as main_image,
+                o.offerPrice,
+                o.status as offer_status,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS final_price
+            FROM products p 
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE p.restaurant_id = ? 
+            ORDER BY p.category ASC, p.id DESC`;
+
+        const [results] = await db.query(sql, [restaurant_id]);
+
+        // ক্যাটাগরি অনুযায়ী ডাটা গ্রুপ করা (Backend এই গুছিয়ে দিচ্ছি)
+        const menuByCategory = results.reduce((acc, item) => {
+            const cat = item.category || 'General';
+            if (!acc[cat]) acc[cat] = [];
+            acc[cat].push({
+                id: item.id,
+                name: item.name,
+                price: item.final_price,
+                image: item.main_image ? `http://localhost:5000/uploads/${item.main_image}` : null
+            });
+            return acc;
+        }, {});
+
+        res.json({
+            success: true,
+            restaurant_id,
+            menu: menuByCategory
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});*/
+app.get('/api/download-menu/:restaurant_id', async (req, res) => {
+    try {
+        const { restaurant_id } = req.params;
+
+        // রেস্টুরেন্ট ইনফো এবং প্রোডাক্ট একসাথে আনার কুয়েরি
+        const sql = `
+            SELECT 
+                r.restaurant_name, 
+                r.logo, 
+                r.location, 
+                r.contact_mobile,
+                p.id as prod_id, 
+                p.name as prod_name, 
+                p.price, 
+                p.category,
+                (SELECT image_path FROM product_images WHERE product_id = p.id LIMIT 1) as main_image,
+                o.offerPrice,
+                o.status as offer_status,
+                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS final_price
+            FROM restaurants r
+            LEFT JOIN products p ON r.id = p.restaurant_id
+            LEFT JOIN offers o ON p.id = o.productId
+            WHERE r.id = ? 
+            ORDER BY p.category ASC, p.id DESC`;
+
+        const [results] = await db.query(sql, [restaurant_id]);
+
+        // যদি ডাটাবেজে এই আইডি দিয়ে কোনো রেস্টুরেন্ট না থাকে
+        if (results.length === 0) {
+            return res.status(404).json({ success: false, message: "Restaurant not found" });
+        }
+
+        // রেস্টুরেন্ট প্রোফাইল ডাটা সাজানো
+        const restaurantProfile = {
+            name: results[0].restaurant_name || 'Elite Dining',
+            logo: results[0].logo ? `http://localhost:5000/uploads/${results[0].logo}` : null,
+            address: results[0].location || 'Address not provided',
+            phone: results[0].contact_mobile || 'Phone not provided'
+        };
+
+        // মেনু আইটেমগুলোকে ক্যাটাগরি অনুযায়ী গ্রুপিং করা
+        const menuByCategory = results.reduce((acc, item) => {
+            // যদি রেস্টুরেন্টের কোনো প্রোডাক্ট না থাকে (prod_id NULL হবে LEFT JOIN এর কারণে)
+            if (!item.prod_id) return acc;
+
+            const cat = item.category || 'General';
+            if (!acc[cat]) acc[cat] = [];
+
+            acc[cat].push({
+                id: item.prod_id,
+                name: item.prod_name,
+                price: item.final_price,
+                image: item.main_image ? `http://localhost:5000/uploads/${item.main_image}` : null
+            });
+            return acc;
+        }, {});
+
+        // ফাইনাল রেসপন্স
+        res.json({
+            success: true,
+            restaurant: restaurantProfile,
+            menu: menuByCategory
+        });
+
+    } catch (err) {
+        console.error("API Error:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
 const PORT = 5000;
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
