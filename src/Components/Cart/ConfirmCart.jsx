@@ -118,9 +118,13 @@ const ConfirmCart = () => {
         sessionStorage.removeItem(cartKey);
         window.dispatchEvent(new Event('cartUpdate'));
         
-        setOrderData({
+        /*setOrderData({
           ...finalData,
           orderId: result.orderId || Math.floor(100000 + Math.random() * 900000)
+        });*/
+        setOrderData({
+          ...finalData,
+          orderId: result.orderId  // ✅ random fallback বাদ দাও
         });
         setShowSuccess(true);
       } else {

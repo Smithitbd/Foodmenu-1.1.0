@@ -597,12 +597,12 @@ app.post('/api/save-order', async (req, res) => {
     }
 });
 
-app.get('/api/orders/:resId', async (req, res) => {
+/*app.get('/api/orders/:resId', async (req, res) => {
     try {
         const [rows] = await db.query("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY id DESC", [req.params.resId]);
         res.json(rows);
     } catch (err) { res.status(500).json({ error: "Failed to fetch orders" }); }
-});
+});*/
 
 app.get('/api/orders/:resId', async (req, res) => {
     try {
@@ -617,6 +617,43 @@ app.put('/api/orders/status/:id', async (req, res) => {
         await db.query("UPDATE orders SET order_status = ? WHERE id = ?", [req.body.status, req.params.id]);
         res.status(200).send("Status Updated");
     } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get("/order-statused", async (req, res) => {
+    const id = parseInt(req.query.id);
+    if (!id || isNaN(id)) {
+        return res.status(400).json({ error: "Valid Order ID is required" });
+    }
+
+    try {
+        const sql = `
+            SELECT 
+                o.id, o.order_status, o.customer_name, o.customer_phone, 
+                o.customer_address, o.total_amount, o.order_type,
+                r.restaurant_name AS restaurant_name, r.logo AS restaurant_logo
+            FROM orders o
+            LEFT JOIN restaurants r ON r.id = o.restaurant_id
+            WHERE o.id = ? LIMIT 1`;
+
+        const [rows] = await db.query(sql, [id]);
+
+        if (rows.length === 0) {
+            return res.status(404).json({ error: "Order not found" });
+        }
+
+        res.json({
+            id: rows[0].id,
+            order_status: rows[0].order_status,
+            customer_name: rows[0].customer_name,
+            customer_phone: rows[0].customer_phone,
+            customer_address: rows[0].customer_address,
+            total_amount: rows[0].total_amount,
+            restaurant_name: rows[0].restaurant_name,
+            restaurant_logo: rows[0].restaurant_logo
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.delete('/api/orders/:id', async (req, res) => {
@@ -789,7 +826,7 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
             GROUP BY DATE(created_at), day 
             ORDER BY DATE(created_at) ASC
         `, [resId]);
-        
+
     const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
 
         res.json({
@@ -1681,7 +1718,13 @@ app.post('/api/place-order', async (req, res) => {
         }
 
         await connection.commit();
-        res.status(201).json({ success: true, message: "Order placed successfully!", details: results });
+        //res.status(201).json({ success: true, message: "Order placed successfully!", details: results });
+        res.status(201).json({ 
+        success: true, 
+        message: "Order placed successfully!", 
+        orderId: results[0].order_id,  // ✅ এই লাইন যোগ করো
+        details: results 
+    });
 
     } catch (error) {
         await connection.rollback();
