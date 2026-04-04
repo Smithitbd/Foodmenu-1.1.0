@@ -355,7 +355,7 @@ const OrderTrackerWidget = () => {
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-white rounded-[20px] flex items-center justify-center shadow-xl p-1 overflow-hidden">
+                  {/*<div className="w-14 h-14 bg-white rounded-[20px] flex items-center justify-center shadow-xl p-1 overflow-hidden">
                     {restaurantLogo ? (
                       <img src={restaurantLogo} alt="logo" className="w-full h-full object-cover rounded-[16px]" />
                     ) : firstItem.img ? (
@@ -363,7 +363,7 @@ const OrderTrackerWidget = () => {
                     ) : (
                       <FaStore size={24} className="text-red-600" />
                     )}
-                  </div>
+                  </div>*/}
                   <div>
                     <h3 className="text-lg font-black tracking-tight leading-none mb-2">{restaurantName}</h3>
                     <div className="flex items-center gap-2 opacity-70">
