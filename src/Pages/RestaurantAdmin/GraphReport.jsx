@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
-  ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, 
+  ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
 import { TrendingUp, Package, AlertCircle, DollarSign, Calendar } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
@@ -11,25 +11,26 @@ const GraphReport = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const fetchGraphData = async() =>{
+  const fetchGraphData = async() => {
     const restaurantId = localStorage.getItem('resId');
     if (!restaurantId) {
       toast.error("Please login first!");
       return;
     }
     setLoading(true);
-    try{
-      const response = await axios.get(`http://localhost:5000/api/reports/graph`,{
-        params: { resId: restaurantId}
+    try {
+      const response = await axios.get(`http://localhost:5000/api/reports/graph`, {
+        params: { resId: restaurantId }
       });
-      setData(response.data);
+      // নিশ্চিত করা হচ্ছে যে ডাটা একটি অ্যারে
+      setData(Array.isArray(response.data) ? response.data : []);
       if(response.data.length > 0) {
         toast.success("Graph data synced!");
       }
-    }catch(error){
+    } catch(error) {
       console.error("Fetch error:", error);
       toast.error("Failed to fetch graph data");
-    }finally {
+    } finally {
       setLoading(false);
     }
   };
@@ -38,13 +39,15 @@ const GraphReport = () => {
     fetchGraphData();
   }, []);
 
-  //Calculation 
+  // Calculation Fix: Number() ব্যবহার করা হয়েছে যাতে স্ট্রিং কনক্যাটিনেশন না হয়
   const summary = useMemo(() => {
-    return data.reduce((acc, curr) => ({
-      totalEarning: acc.totalEarning + curr.earning,
-      totalDue: acc.totalDue + curr.due,
-      totalQty: acc.totalQty + curr.qty
-    }), { totalEarning: 0, totalDue: 0, totalQty: 0 });
+    return data.reduce((acc, curr) => {
+      return {
+        totalEarning: acc.totalEarning + Number(curr.earning || 0),
+        totalDue: acc.totalDue + Number(curr.due || 0),
+        totalQty: acc.totalQty + Number(curr.qty || 0)
+      };
+    }, { totalEarning: 0, totalDue: 0, totalQty: 0 });
   }, [data]);
 
   return (
@@ -74,7 +77,9 @@ const GraphReport = () => {
                   <DollarSign size={24} />
                 </span>
                 <h3 className="text-xl font-bold text-slate-700">Total Earnings</h3>
-                <h2 className="text-4xl font-black text-slate-900 mt-1">৳{summary.totalEarning.toLocaleString()}</h2>
+                <h2 className="text-4xl font-black text-slate-900 mt-1">
+                  ৳{summary.totalEarning.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </h2>
               </div>
               <div className="text-right">
                 <span className="text-emerald-500 font-bold flex items-center gap-1">
@@ -105,7 +110,7 @@ const GraphReport = () => {
             </div>
           </div>
 
-          {/* Right Column: Quantity & Due (Small Charts in one column but stacked) */}
+          {/* Right Column */}
           <div className="lg:col-span-4 flex flex-col gap-6">
             
             {/* Total Quantity Card */}
@@ -137,7 +142,9 @@ const GraphReport = () => {
                 </div>
                 <div>
                   <p className="text-slate-500 text-sm font-bold uppercase tracking-wider">Total Due</p>
-                  <h3 className="text-2xl font-black text-rose-600">৳{summary.totalDue.toLocaleString()}</h3>
+                  <h3 className="text-2xl font-black text-rose-600">
+                    ৳{summary.totalDue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </h3>
                 </div>
               </div>
               <div className="h-[120px]">
@@ -148,11 +155,10 @@ const GraphReport = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-
           </div>
         </div>
 
-        {/* Detailed Comparison Table (Lower Row) */}
+        {/* Table Breakdown */}
         <div className="mt-8 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
           <div className="p-6 border-b border-slate-50">
             <h3 className="text-lg font-bold text-slate-800">Monthly Performance Breakdown</h3>
@@ -171,9 +177,9 @@ const GraphReport = () => {
                 {data.map((row, idx) => (
                   <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
                     <td className="p-4 font-semibold text-slate-700">{row.name}</td>
-                    <td className="p-4 text-emerald-600 font-bold">৳{row.earning}</td>
-                    <td className="p-4 text-slate-600">{row.qty} Units</td>
-                    <td className="p-4 text-rose-500 font-semibold">৳{row.due}</td>
+                    <td className="p-4 text-emerald-600 font-bold">৳{Number(row.earning).toLocaleString()}</td>
+                    <td className="p-4 text-slate-600">{Number(row.qty).toLocaleString()} Units</td>
+                    <td className="p-4 text-rose-500 font-semibold">৳{Number(row.due).toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>

@@ -46,12 +46,26 @@ const TableReport = () => {
   }, []);
 
   // পরিসংখ্যান ক্যালকুলেশন
-  const stats = useMemo(() => {
+  /*const stats = useMemo(() => {
     const totalInvoice = reportData.length;
     const subTotalSum = reportData.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
     const netTotalSum = reportData.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
     return { totalInvoice, subTotalSum, netTotalSum };
-}, [reportData]);
+}, [reportData]);*/
+  const stats = useMemo(() => {
+    // শুধুমাত্র সেই অর্ডারগুলো নেব যেগুলো cancelled না
+      const validOrders = reportData.filter(item => item.order_status !== 'cancelled');
+
+      const totalInvoice = reportData.length; // ইনভয়েস সংখ্যা সবগুলোরই দেখাবে
+      
+      const subTotalSum = validOrders.reduce((sum, item) => 
+          sum + (Number(item.subtotal) || 0), 0);
+      
+      const netTotalSum = validOrders.reduce((sum, item) => 
+          sum + (Number(item.total_amount) || 0), 0);
+
+      return { totalInvoice, subTotalSum, netTotalSum };
+  }, [reportData]);
 
   // সার্চ লজিক
   const filteredData = useMemo(() => {
@@ -157,20 +171,21 @@ const TableReport = () => {
               </thead>
               <tbody className="text-sm">
                 {filteredData.map((item, index) => (
-                  <tr key={index} className="border-b hover:bg-gray-50 transition-colors">
+                  <tr key={index} className={`border-b hover:bg-gray-50 transition-colors ${item.order_status === 'cancelled' ? 'bg-red-50/50 opacity-60' : ''}`}>
                     <td className="p-4 font-bold text-gray-800">#{item.id}</td>
-                    <td className="p-4 font-medium">{item.customer_name || 'Walking Customer'}</td>
-                    <td className="p-4 text-gray-500">৳{item.subtotal || 0}</td>
-                    <td className="p-4 text-red-500">-৳{item.discount || 0}</td>
-                    <td className="p-4 font-black text-gray-900">৳{item.total_amount}</td>
-                    <td className="p-4">
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${Number(item.due_amount) > 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
-                            {Number(item.due_amount) > 0 ? `Due: ৳${item.due_amount}` : 'Paid'}
-                        </span>
+                    <td className="p-4 font-medium">
+                      {item.customer_name || 'Walking Customer'}
+                      {item.order_status === 'cancelled' && <span className="ml-2 text-[8px] bg-red-500 text-white px-1 rounded">CANCELLED</span>}
                     </td>
-                    {/* তারিখ ফরম্যাট করার জন্য slice ব্যবহার করা হয়েছে */}
-                    <td className="p-4 text-gray-400 text-xs font-bold">{item.created_at ? item.created_at.slice(0, 10) : 'N/A'}</td>
-                    <td className="p-4"><span className="bg-gray-100 px-2 py-1 rounded font-bold text-[10px] uppercase">{item.payment_method}</span></td>
+                    <td className="p-4 text-gray-500">
+                      {/* যদি ক্যানসেল হয় তবে ০ দেখাবে রিপোর্টে */}
+                      ৳{item.order_status === 'cancelled' ? '0.00' : (item.subtotal || 0)}
+                    </td>
+                    <td className="p-4 text-red-500">-৳{item.order_status === 'cancelled' ? '0.00' : (item.discount || 0)}</td>
+                    <td className="p-4 font-black text-gray-900">
+                      ৳{item.order_status === 'cancelled' ? '0.00' : item.total_amount}
+                    </td>
+                    {/* বাকি td গুলো আগের মতোই থাকবে... */}
                   </tr>
                 ))}
               </tbody>

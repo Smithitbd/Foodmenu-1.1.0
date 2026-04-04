@@ -102,7 +102,7 @@ const RestaurantDashboard = () => {
   const stats = [
     { id: 1, title: 'Active Orders', value: dashboardData.activeOrders, icon: <ShoppingBag size={24}/>, color: 'text-blue-600', bg: 'bg-blue-50', hoverBg: 'hover:bg-blue-600' },
     { id: 2, title: 'Total Menu Items', value: dashboardData.totalMenu, icon: <Utensils size={24}/>, color: 'text-orange-600', bg: 'bg-orange-50', hoverBg: 'hover:bg-orange-600' },
-    { id: 3, title: 'Today\'s Earning', value: `৳ ${dashboardData.todayEarning}`, icon: <Banknote size={24}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', hoverBg: 'hover:bg-emerald-600' },
+    { id: 3, title: 'Today\'s Earning', value: `৳ ${Number(dashboardData.todayEarning || 0).toFixed(2)}`, icon: <Banknote size={24}/>, color: 'text-emerald-600', bg: 'bg-emerald-50', hoverBg: 'hover:bg-emerald-600' },
     { id: 4, title: 'Avg. Rating', value: dashboardData.avgRating, icon: <Star size={24}/>, color: 'text-yellow-600', bg: 'bg-yellow-50', hoverBg: 'hover:bg-yellow-600' },
   ];
 

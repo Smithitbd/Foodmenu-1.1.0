@@ -770,9 +770,27 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
 
         const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
         const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
-        const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
-        const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
+        /*const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
+        */
+       const [earnings] = await db.query(
+        "SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE() AND order_status != 'cancelled'", 
+        [resId]
+    );
+    /*const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
+    */
+    const [weeklySalesRows] = await db.query(
+        `SELECT 
+        DATE_FORMAT(created_at, '%a') as day, 
+        SUM(total_amount) as total 
+            FROM orders 
+            WHERE restaurant_id = ? 
+            AND order_status != 'cancelled' 
+            AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
+            GROUP BY DATE(created_at), day 
+            ORDER BY DATE(created_at) ASC
+        `, [resId]);
+        
+    const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
 
         res.json({
             name: restaurant.restaurant_name,
@@ -1065,7 +1083,7 @@ app.get('/api/reports', async (req, res) => {
     }
 });
 
-app.get('/api/reports/graph', async (req, res) => {
+/*app.get('/api/reports/graph', async (req, res) => {
     const { resId } = req.query;
 
     if (!resId) {
@@ -1089,6 +1107,38 @@ app.get('/api/reports/graph', async (req, res) => {
         
         // নোট: 'qty' এর জন্য আপনার টেবিলে আলাদা কলাম থাকলে সেটি SUM করবেন, 
         // আমি আপাতত অর্ডারের সংখ্যা বা আইডি কাউন্ট হিসেবে দেখাচ্ছি।
+
+        const [rows] = await db.query(sql, [resId]);
+        res.json(rows);
+    } catch (error) {
+        console.error("Graph Error:", error);
+        res.status(500).json({ error: error.message });
+    }
+});*/
+app.get('/api/reports/graph', async (req, res) => {
+    const { resId } = req.query;
+
+    if (!resId) {
+        return res.status(400).json({ error: "Restaurant ID is missing!" });
+    }
+
+    try {
+        // এখানে WHERE ক্লজে 'order_status != cancelled' যোগ করা হয়েছে
+        const sql = `
+            SELECT 
+                MONTHNAME(created_at) as name, 
+                SUM(total_amount) as earning, 
+                SUM(due_amount) as due, 
+                COUNT(id) as qty 
+            FROM orders 
+            WHERE restaurant_id = ? 
+            AND order_status != 'cancelled' 
+            AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+            GROUP BY MONTH(created_at), name
+            ORDER BY MONTH(created_at) ASC
+        `;
+        
+        // আমি SUM(id) এর বদলে COUNT(id) দিয়েছি কারণ এটি অর্ডারের সঠিক সংখ্যা দিবে
 
         const [rows] = await db.query(sql, [resId]);
         res.json(rows);
