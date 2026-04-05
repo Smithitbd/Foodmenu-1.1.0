@@ -190,43 +190,42 @@ const Header = () => {
             </h2>
 
             {/* Search Container - Adjusted Padding & Size */}
-            <div className="relative mx-auto xl:mx-0 w-full max-w-lg md:max-w-xl lg:max-w-2xl mb-10 z-[100]" ref={searchRef}>
-              <div className="relative group shadow-[0_20px_50px_rgba(239,68,68,0.15)] rounded-[2.2rem] transition-all duration-300">
+            <div className="relative mx-auto xl:mx-0 w-full max-w-md md:max-w-lg lg:max-w-[540px] mb-8 z-[100]" ref={searchRef}>
+              <div className="relative group shadow-[0_15px_40px_rgba(239,68,68,0.12)] rounded-[1.8rem] transition-all duration-300">
                 <input
                   type="text"
                   value={query}
                   onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true); }}
                   onFocus={() => setShowSuggestions(true)}
-                  placeholder={placeholder || "Search restaurants..."}
-                  // Py size changed from 8 to 5/6 for a cleaner look
-                  className="w-full pl-12 sm:pl-14 pr-24 py-4 sm:py-5 md:py-6 text-base sm:text-lg md:text-xl rounded-[2.2rem] bg-white border-2 border-transparent focus:border-red-200 focus:ring-4 ring-red-500/5 outline-none transition-all duration-300 text-slate-800 font-bold placeholder:text-gray-300"
+                  placeholder={placeholder || "Find your favourite food..."}
+                  className="w-full pl-12 sm:pl-14 pr-24 py-4 sm:py-4.5 text-base sm:text-lg rounded-[1.8rem] bg-white border-2 border-transparent focus:border-red-100 focus:ring-4 ring-red-500/10 outline-none transition-all duration-300 text-slate-800 font-bold placeholder:text-gray-400"
                 />
                 
-                {/* Left Search Icon - Balanced */}
-                <MagnifyingGlassIcon className={`absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-5 h-5 sm:w-6 sm:h-6 transition-colors ${query ? 'text-red-500' : 'text-gray-400'}`} />
+                {/* Left Search Icon*/}
+                <MagnifyingGlassIcon className={`absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-5 h-5 sm:w-6 transition-colors ${query ? 'text-red-500' : 'text-gray-400'}`} />
 
-                {/* Right Buttons Area */}
-                <div className="absolute right-2.5 sm:right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 sm:gap-2">
+                {/* Right Buttons Area*/}
+                <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 sm:gap-2">
                   {query && (
                     <XMarkIcon 
                       onClick={() => setQuery('')} 
-                      className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400 cursor-pointer hover:text-red-600 transition-all p-1" 
+                      className="w-6 h-6 text-gray-400 cursor-pointer hover:text-red-600 transition-all p-1" 
                     />
                   )}
-                  <button className="bg-red-600 hover:bg-slate-900 text-white p-3 sm:p-4 md:p-4.5 rounded-full transition-all duration-300 shadow-lg active:scale-95">
-                    <MagnifyingGlassIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+                  <button className="bg-red-600 hover:bg-slate-900 text-white p-2.5 sm:p-3 rounded-full transition-all duration-300 shadow-lg active:scale-95">
+                    <MagnifyingGlassIcon className="w-5 h-5 sm:w-5.5 sm:h-5.5" />
                   </button>
                 </div>
               </div>
 
-              {/* Suggestions Dropdown - Balanced Padding & Text */}
+              {/* Suggestions Dropdown - ১ নম্বর কোড অনুযায়ী */}
               <AnimatePresence>
                 {showSuggestions && (
                   <motion.div 
                     initial={{ opacity: 0, y: 15 }} 
                     animate={{ opacity: 1, y: 0 }} 
                     exit={{ opacity: 0, y: 10 }}
-                    className="absolute left-0 right-0 mt-3 bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.15)] border border-slate-50 z-[110] overflow-hidden"
+                    className="absolute left-0 right-0 mt-3 bg-white rounded-[1.8rem] shadow-[0_25px_60px_rgba(0,0,0,0.15)] border border-slate-50 z-[110] overflow-hidden"
                   >
                     <div className="max-h-[350px] md:max-h-[400px] overflow-y-auto py-4 no-scrollbar scroll-smooth px-1">
                       {loading ? (
