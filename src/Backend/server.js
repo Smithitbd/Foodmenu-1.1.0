@@ -10,7 +10,6 @@ import fs from 'fs';
 import sharp from 'sharp';
 import nodemailer from'nodemailer';
 
-
 const app = express();
 const saltRounds = 10;
 const __filename = fileURLToPath(import.meta.url);
@@ -24,24 +23,10 @@ if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// --- Multer Configuration ---
-/*const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, uniqueSuffix + path.extname(file.originalname));
-    }
-});
-//const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });*/
-
 const storage = multer.memoryStorage(); 
 
 const upload = multer({ 
   storage: storage
-  //limits: { fileSize: 10 * 1024 * 1024 } // ১০ মেগাবাইট পর্যন্ত সাপোর্ট
 });
 
 app.use(cors());
@@ -114,7 +99,6 @@ app.post('/api/register-restaurant', upload.fields([
             const file = files['logo'][0];
             logoFileName = `logo-${Date.now()}.webp`;
             
-            // ভুল ছিল: sharp(file.path) -> সঠিক: sharp(file.buffer)
             // কারণ memoryStorage এ ফাইল হার্ডড্রাইভে থাকে না, র‍্যামে (buffer) থাকে।
             await sharp(file.buffer) 
                 .resize(400, 400, { fit: 'inside' })
@@ -142,17 +126,7 @@ app.post('/api/register-restaurant', upload.fields([
         const sql = `INSERT INTO restaurants (owner_name, owner_email, owner_password, restaurant_name, restaurant_category, slug, logo, nid_doc, location, area_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
         
         await db.query(sql, [
-            owner_name,
-            owner_email, 
-            hashedPassword, 
-            restaurant_name, 
-            restaurant_category || 'Others', 
-            slug, 
-            logoFileName, 
-            nidFileName, 
-            location,
-            area_id, 
-            'inactive'
+            owner_name, owner_email, hashedPassword, restaurant_name, restaurant_category || 'Others', slug, logoFileName, nidFileName, location,area_id, 'inactive'
         ]);
         
         res.status(201).json({ message: "Registration Successful!" });
@@ -310,62 +284,6 @@ app.get('/api/area-restaurants', async (req, res) => {
 });
 
 // --- MENU & PRODUCT APIS ---
-/*app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
-    let productId = null; // ট্র্যাক রাখার জন্য যে প্রোডাক্ট ইনসার্ট হয়েছে কি না
-    try {
-        const { restaurant_id, name, price, offer_price, category, estimated_time, quantity } = req.body;
-        const files = req.files;
-
-        // ১. ডাটাবেসে প্রোডাক্ট ইনসার্ট
-        const [productResult] = await db.query(
-            `INSERT INTO products (restaurant_id, name, price, offer_price, category, estimated_time, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [restaurant_id, name, price, offer_price || 0, category, estimated_time || 20, quantity || 'Full']
-        );
-        
-        productId = productResult.insertId;
-
-        // ২. ইমেজ প্রসেসিং (যদি ফাইল থাকে)
-        if (files && files.length > 0) {
-            for (const file of files) {
-                const fileName = `prod-${Date.now()}-${Math.round(Math.random() * 1E9)}.webp`;
-                const uploadPath = path.join(__dirname, 'uploads', fileName);
-
-                // গুরুত্বপূর্ণ: sharp এ ফাইল বাফার চেক করা
-                if (!file.buffer) {
-                    console.error("File buffer missing for:", file.originalname);
-                    continue; // বাফার না থাকলে এই ইমেজটি স্কিপ করবে
-                }
-
-                await sharp(file.buffer)
-                    .resize(500, 500, { fit: 'cover' })
-                    .webp({ quality: 80 })
-                    .toFile(uploadPath);
-                
-                // ডাটাবেসে ইমেজ পাথ সেভ
-                await db.query(`INSERT INTO product_images (product_id, image_path) VALUES (?, ?)`, [productId, fileName]);
-            }
-        }
-
-        // ৩. সবকিছু ঠিক থাকলে সাকসেস রেসপন্স
-        return res.status(201).json({ 
-            success: true, 
-            message: "Product and images added successfully!", 
-            productId 
-        });
-
-    } catch (error) {
-        console.error("Server Side Error:", error);
-        
-        // যদি ডাটা ইনসার্ট হওয়ার পর ইমেজ সেকশনে এরর আসে, ইউজারকে মেসেজ দিন
-        res.status(500).json({ 
-            success: false, 
-            message: productId 
-                ? "Product added but image upload failed: " + error.message 
-                : "Failed to add product: " + error.message
-        });
-    }
-});*/
-
 app.post('/api/add-product', upload.array('images', 10), async (req, res) => {
     let productId = null;
     try {
@@ -530,21 +448,6 @@ app.patch('/api/update-all-status', async (req, res) => {
 });
 
 // --- ORDER APIS ---
-/*app.post('/api/save-order', async (req, res) => {
-    try {
-        const { customer, items, billing, payment, subscription, restaurant_id } = req.body;
-        const [orderResult] = await db.query(
-            `INSERT INTO orders (restaurant_id, customer_name, customer_phone, customer_address, subtotal, discount, total_amount, paid_amount, due_amount, payment_method, order_status, reference) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [restaurant_id, customer.name, customer.mobile, customer.address, billing.subTotal, billing.discount, billing.finalTotal, billing.paidAmount, billing.dueAmount, payment.paymentMethod, subscription.status, subscription.reference || null]
-        );
-        const orderId = orderResult.insertId;
-        const itemValues = items.map(item => [orderId, item.searchId, item.quantity, item.price, item.total]);
-        await db.query(`INSERT INTO order_items (order_id, product_id, quantity, price, total_price) VALUES ?`, [itemValues]);
-        res.status(201).json({ message: "Order saved!", orderId });
-    } catch (error) {
-        res.status(500).json({ message: "Order failed", error: error.message });
-    }
-});*/
 app.post('/api/save-order', async (req, res) => {
     try {
         const { customer, items, billing, payment, subscription, restaurant_id, order_type } = req.body;
@@ -596,13 +499,6 @@ app.post('/api/save-order', async (req, res) => {
         res.status(500).json({ message: "Order failed", error: error.message });
     }
 });
-
-/*app.get('/api/orders/:resId', async (req, res) => {
-    try {
-        const [rows] = await db.query("SELECT * FROM orders WHERE restaurant_id = ? ORDER BY id DESC", [req.params.resId]);
-        res.json(rows);
-    } catch (err) { res.status(500).json({ error: "Failed to fetch orders" }); }
-});*/
 
 app.get('/api/orders/:resId', async (req, res) => {
     try {
@@ -790,9 +686,8 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
             timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
         });
 
-        const dbOpeningTime = restaurant.opening_time.substring(0, 5); // উদা: "09:00"
-        const dbClosingTime = restaurant.closing_time.substring(0, 5); // উদা: "23:00"
-
+        const dbOpeningTime = restaurant.opening_time.substring(0, 5); 
+        const dbClosingTime = restaurant.closing_time.substring(0, 5); 
         // Automatic open
         if (bstTime === dbOpeningTime && restaurant.is_online === 0) {
             await db.query("UPDATE restaurants SET is_online = 1 WHERE id = ?", [resId]);
@@ -807,14 +702,10 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
 
         const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
         const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
-        /*const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        */
        const [earnings] = await db.query(
         "SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE() AND order_status != 'cancelled'", 
         [resId]
     );
-    /*const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
-    */
     const [weeklySalesRows] = await db.query(
         `SELECT 
         DATE_FORMAT(created_at, '%a') as day, 
@@ -830,124 +721,14 @@ app.get('/api/dashboard-stats/:resId', async (req, res) => {
     const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
 
         res.json({
-            name: restaurant.restaurant_name,
-            status: restaurant.is_online === 1 ? 'active' : 'inactive',
-            is_manual_online: restaurant.is_online,
-            opening_time: restaurant.opening_time,
-            closing_time: restaurant.closing_time,
-            totalMenu: menuCount[0]?.total || 0,
-            activeOrders: orders[0]?.active || 0,
-            todayEarning: earnings[0]?.todayTotal || 0,
-            avgRating: 4.8,
-            weeklySales: weeklySalesRows,
-            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
+            name: restaurant.restaurant_name,status: restaurant.is_online === 1 ? 'active' : 'inactive',is_manual_online: restaurant.is_online, opening_time: restaurant.opening_time,closing_time: restaurant.closing_time,totalMenu: menuCount[0]?.total || 0,activeOrders: orders[0]?.active || 0,todayEarning: earnings[0]?.todayTotal || 0,avgRating: 4.8,weeklySales: weeklySalesRows,incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
         });
     } catch (err) {
         res.status(500).json({ error: "Internal Error" });
     }
 });
 
-/*Auto off
-app.get('/api/dashboard-stats/:resId', async (req, res) => {
-    try {
-        const { resId } = req.params;
-        const [resRows] = await db.query(
-            "SELECT id, restaurant_name, is_online, opening_time, closing_time FROM restaurants WHERE id = ?", 
-            [resId]
-        );
-        
-        if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
-        let restaurant = resRows[0];
-
-        // --- স্মার্ট লজিক আপডেট ---
-        const now = new Date();
-        const bstTime = now.toLocaleTimeString('en-GB', { 
-            timeZone: 'Asia/Dhaka', hour12: false, hour: '2-digit', minute: '2-digit' 
-        });
-
-        // যদি বর্তমান সময় ঠিক ক্লোজিং টাইমের সমান হয়, তবেই কেবল অটো অফ করো
-        // substrings(0,5) নিচ্ছি কারণ ডাটাবেসে সময় 15:51:00 থাকে, আমরা কেবল 15:51 মেলাবো
-        const dbClosingTime = restaurant.closing_time.substring(0, 5);
-
-        if (bstTime === dbClosingTime && restaurant.is_online === 1) {
-            await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
-            restaurant.is_online = 0;
-        }
-        // --- স্মার্ট লজিক শেষ ---
-
-        // বাকি কুয়েরি আগের মতোই থাকবে...
-        const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
-        const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
-        const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
-        const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
-
-        res.json({
-            name: restaurant.restaurant_name,
-            status: restaurant.is_online === 1 ? 'active' : 'inactive',
-            is_manual_online: restaurant.is_online,
-            opening_time: restaurant.opening_time,
-            closing_time: restaurant.closing_time,
-            totalMenu: menuCount[0]?.total || 0,
-            activeOrders: orders[0]?.active || 0,
-            todayEarning: earnings[0]?.todayTotal || 0,
-            avgRating: 4.8,
-            weeklySales: weeklySalesRows,
-            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
-        });
-    } catch (err) {
-        res.status(500).json({ error: "Internal Error" });
-    }
-});*/
-
-/*app.get('/api/dashboard-stats/:resId', async (req, res) => {
-    try {
-        const { resId } = req.params;
-        const [resRows] = await db.query(
-            "SELECT id, restaurant_name, is_online, opening_time, closing_time FROM restaurants WHERE id = ?", 
-            [resId]
-        );
-        
-        if (resRows.length === 0) return res.status(404).json({ error: "Not found" });
-        let restaurant = resRows[0];
-
-        // --- স্মার্ট লজিক শুরু ---
-        const isOfficialTime = checkOfficialTime(restaurant.opening_time, restaurant.closing_time);
-
-        // রিকয়ারমেন্ট: ক্লোজিং টাইমের সমান বা পার হয়ে গেলে অটো অফ হবে
-        if (!isOfficialTime && restaurant.is_online === 1) {
-            // টাইম শেষ কিন্তু বাটন এখনো অন, তাই ডাটাবেসে অফ করে দাও
-            await db.query("UPDATE restaurants SET is_online = 0 WHERE id = ?", [resId]);
-            restaurant.is_online = 0; // রেসপন্সের জন্য আপডেট করে নিলাম
-        }
-        // --- স্মার্ট লজিক শেষ ---
-
-        // ড্যাশবোর্ডের বাকি ডাটা কুয়েরি
-        const [menuCount] = await db.query("SELECT COUNT(*) as total FROM products WHERE restaurant_id = ?", [resId]);
-        const [orders] = await db.query("SELECT COUNT(*) as active FROM orders WHERE restaurant_id = ? AND order_status = 'pending'", [resId]);
-        const [earnings] = await db.query("SELECT SUM(total_amount) as todayTotal FROM orders WHERE restaurant_id = ? AND DATE(created_at) = CURDATE()", [resId]);
-        const [weeklySalesRows] = await db.query(`SELECT DATE_FORMAT(created_at, '%a') as day, SUM(total_amount) as total FROM orders WHERE restaurant_id = ? AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) GROUP BY DATE(created_at), day ORDER BY DATE(created_at) ASC`, [resId]);
-        const [latestOrders] = await db.query("SELECT id, total_amount, order_status FROM orders WHERE restaurant_id = ? ORDER BY id DESC LIMIT 3", [resId]);
-
-        res.json({
-            name: restaurant.restaurant_name,
-            status: restaurant.is_online === 1 ? 'active' : 'inactive', // এটাই "Accepting Orders" দেখাবে
-            is_manual_online: restaurant.is_online, // বাটনের স্টেটের জন্য
-            opening_time: restaurant.opening_time,
-            closing_time: restaurant.closing_time,
-            totalMenu: menuCount[0]?.total || 0,
-            activeOrders: orders[0]?.active || 0,
-            todayEarning: earnings[0]?.todayTotal || 0,
-            avgRating: 4.8,
-            weeklySales: weeklySalesRows,
-            incomingOrders: latestOrders.map(o => ({ id: o.id, total_price: o.total_amount }))
-        });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: "Internal Error" });
-    }
-});*/
-
+//---Auto off---
 app.get('/api/inventory/:resId', async (req, res) => {
     try {
         const sql = `
@@ -1120,38 +901,6 @@ app.get('/api/reports', async (req, res) => {
     }
 });
 
-/*app.get('/api/reports/graph', async (req, res) => {
-    const { resId } = req.query;
-
-    if (!resId) {
-        return res.status(400).json({ error: "Restaurant ID is missing!" });
-    }
-
-    try {
-        // গত ৬ মাসের ডাটা মাসের নাম অনুযায়ী গ্রুপিং করার কুয়েরি
-        const sql = `
-            SELECT 
-                MONTHNAME(created_at) as name, 
-                SUM(total_amount) as earning, 
-                SUM(due_amount) as due, 
-                SUM(id) as qty 
-            FROM orders 
-            WHERE restaurant_id = ? 
-            AND created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-            GROUP BY MONTH(created_at), name
-            ORDER BY MONTH(created_at) ASC
-        `;
-        
-        // নোট: 'qty' এর জন্য আপনার টেবিলে আলাদা কলাম থাকলে সেটি SUM করবেন, 
-        // আমি আপাতত অর্ডারের সংখ্যা বা আইডি কাউন্ট হিসেবে দেখাচ্ছি।
-
-        const [rows] = await db.query(sql, [resId]);
-        res.json(rows);
-    } catch (error) {
-        console.error("Graph Error:", error);
-        res.status(500).json({ error: error.message });
-    }
-});*/
 app.get('/api/reports/graph', async (req, res) => {
     const { resId } = req.query;
 
@@ -1198,37 +947,6 @@ app.get('/api/restaurant/:id', async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
-
-// 
-/*app.put('/api/restaurant/update-all/:id', upload.fields([
-    { name: 'logo', maxCount: 1 },
-    { name: 'cover', maxCount: 1 }
-]), async (req, res) => {
-    const { id } = req.params;
-    const { restaurant_name, location, contact_mobile, slug } = req.body;
-    
-    // নতুন ইমেজ থাকলে সেটি নিন, না থাকলে পুরানোটাই রাখুন
-    let logoFile = req.files['logo'] ? req.files['logo'][0].filename : null;
-    let coverFile = req.files['cover'] ? req.files['cover'][0].filename : null;
-
-    try {
-        // SQL query তে bg_image এবং logo আপডেট করুন
-        let sql = "UPDATE restaurants SET restaurant_name=?, location=?, contact_mobile=?, slug=?";
-        let params = [restaurant_name, location, contact_mobile, slug];
-
-        if (logoFile) { sql += ", logo=?"; params.push(logoFile); }
-        if (coverFile) { sql += ", bg_image=?"; params.push(coverFile); }
-
-        sql += " WHERE id=?";
-        params.push(id);
-
-        await db.query(sql, params);
-        res.json({ success: true, message: "Updated successfully" });
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: "Database update failed" });
-    }
-});*/
 
 app.get('/api/setup-offer-data/:restaurant_id', async (req, res) => {
     const { restaurant_id } = req.params;
@@ -1771,94 +1489,6 @@ app.get('/api/get-tables/:restaurantId', async (req, res) => {
 });
 
 // Place Order API
-/*app.post('/api/place-order', async (req, res) => {
-    const { 
-        customerInfo, 
-        cartItems, 
-        method, 
-        area, 
-        selectedTable, 
-        paymentMethod, 
-        extraCharge 
-    } = req.body;
-
-    const connection = await db.getConnection();
-
-    try {
-        await connection.beginTransaction();
-
-        // ১. কার্ট আইটেমগুলোকে রেস্টুরেন্ট অনুযায়ী গ্রুপ করা
-        const itemsByRestaurant = cartItems.reduce((acc, item) => {
-            const resId = item.restaurant_id || item.resId;
-            if (!acc[resId]) acc[resId] = [];
-            acc[resId].push(item);
-            return acc;
-        }, {});
-
-        const restaurantIds = Object.keys(itemsByRestaurant);
-        const results = [];
-
-        // ২. প্রতিটি রেস্টুরেন্টের জন্য আলাদা অর্ডার প্রসেস করা
-        for (const resId of restaurantIds) {
-            const items = itemsByRestaurant[resId];
-            
-            // সাবটোটাল ক্যালকুলেশন
-            const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-            
-            // ডেলিভারি চার্জ ভাগ করা (Multi-vendor হলে)
-            const chargePerRes = extraCharge / restaurantIds.length;
-            const finalTotal = subtotal + chargePerRes;
-
-            // ৩. SQL কুয়েরি (তোমার টেবিল স্ট্রাকচার অনুযায়ী)
-            const orderSql = `INSERT INTO orders 
-                (restaurant_id, customer_name, customer_phone, customer_address, 
-                subtotal, order_type, table_id, total_amount, payment_method, order_status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`;
-
-            const [orderResult] = await connection.query(orderSql, [
-                resId,
-                customerInfo.name || 'Walk-in Customer',
-                customerInfo.phone || 'N/A',
-                method === 'Delivery' ? `${area}, ${customerInfo.address}` : 'N/A',
-                subtotal,
-                method, // 'Delivery', 'Pickup', 'Dine-In'
-                selectedTable || null, // Dine-in হলে Table ID যাবে
-                finalTotal,
-                paymentMethod === 'Cash' ? 'CASH' : 'DIGITAL'
-            ]);
-
-            const orderId = orderResult.insertId;
-
-            // ৪. অর্ডার আইটেমগুলো ইনসার্ট করা
-            const itemValues = items.map(item => [
-                orderId,
-                item.id, 
-                item.quantity,
-                item.price,
-                item.price * item.quantity
-            ]);
-
-            const itemsSql = `INSERT INTO order_items 
-                (order_id, product_id, quantity, price, total_price) 
-                VALUES ?`;
-
-            await connection.query(itemsSql, [itemValues]);
-
-            results.push({ restaurant_id: resId, order_id: orderId });
-        }
-
-        await connection.commit();
-        res.status(201).json({ success: true, message: "Order placed!", details: results });
-
-    } catch (error) {
-        await connection.rollback();
-        console.error("Order API Error:", error);
-        res.status(500).json({ success: false, message: error.message });
-    } finally {
-        connection.release();
-    }
-});*/
-
 //Add Table 
 app.post('/api/add-table', async (req, res) => {
     const { restaurant_id, table_number, category, capacity } = req.body;
@@ -1913,48 +1543,6 @@ app.get('/api/tables/:resId', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
-//For automatic
-/*app.get('/api/tables/:resId', (req, res) => {
-    const { resId } = req.params;
-
-    // এই কুয়েরিটি অটোমেটিক চেক করবে অর্ডারের অবস্থা
-    const sql = `
-        SELECT 
-            t.id, 
-            t.table_number, 
-            t.category, 
-            t.capacity,
-            -- যদি ওই টেবিলের কোনো অর্ডার লাইভ থাকে, তবে 0 (Booked), নাহলে 1 (Available)
-            CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM orders 
-                    WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
-                    AND order_status IN ('pending', 'confirmed', 'cooking')
-                ) THEN 0 
-                ELSE 1 
-            END AS is_available,
-            -- কাস্টমারের নাম নিয়ে আসা
-            (SELECT customer_name FROM orders 
-             WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
-             AND order_status IN ('pending', 'confirmed', 'cooking') 
-             ORDER BY id DESC LIMIT 1) as customer_name,
-            -- কাস্টমারের ফোন নিয়ে আসা
-            (SELECT customer_phone FROM orders 
-             WHERE table_id COLLATE utf8mb4_general_ci = CAST(t.id AS CHAR) COLLATE utf8mb4_general_ci
-             AND order_status IN ('pending', 'confirmed', 'cooking') 
-             ORDER BY id DESC LIMIT 1) as customer_phone
-        FROM restaurant_tables t
-        WHERE t.restaurant_id = ?
-        ORDER BY t.table_number ASC`;
-
-    db.query(sql, [resId], (err, results) => {
-        if (err) {
-            console.error("Database Error:", err);
-            return res.status(500).json({ success: false, error: err.message });
-        }
-        res.json(results);
-    });
-});*/
 
 // Update Table status Manually 
 app.put('/api/update-table-status', (req, res) => {
@@ -1964,48 +1552,7 @@ app.put('/api/update-table-status', (req, res) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         res.json({ success: true });
     });
-});
-
-// Message post for user
-/*app.post('/api/contact', (req, res) => {
-    const { name, email, subject, message } = req.body;
-
-    if (!name || !email || !subject || !message) {
-        return res.status(400).json({ success: false, message: "All fields are required!" });
-    }
-
-    const sqlQuery = "INSERT INTO contact_messages (name, email, subject, message) VALUES (?, ?, ?, ?)";
-    
-    db.execute(sqlQuery, [name, email, subject, message], (err, result) => {
-        if (err) {
-            console.error("Database Error:", err);
-            return res.status(500).json({ success: false, message: "Database Error" });
-        }
-        res.status(201).json({ success: true, message: "Your message has been saved!" });
-    });
-});*/
-
-// Superadmin read all messages
-/*app.get('/api/admin/messages', (req, res) => {
-    const sqlQuery = "SELECT * FROM contact_messages ORDER BY created_at DESC";
-
-    db.query(sqlQuery, (err, results) => {
-        if (err) {
-            console.error("Fetch Error:", err);
-            return res.status(500).json({ success: false, message: "Failed to fetch messages" });
-        }
-        res.json(results);
-    });
-});
-
-// Mark message for indivisual message 
-app.put('/api/admin/messages/:id/read', (req, res) => {
-    const { id } = req.params;
-    db.execute("UPDATE contact_messages SET is_read = TRUE WHERE id = ?", [id], (err, result) => {
-        if (err) return res.status(500).json({ success: false });
-        res.json({ success: true, message: "Marked as read" });
-    });
-});*/
+})
 
 // Contact API
 app.post('/api/contact', (req, res) => {
@@ -2055,50 +1602,6 @@ app.get('/api/admin/messages', (req, res) => {
 });
 
 //API for Menu download
-/*app.get('/api/download-menu/:restaurant_id', async (req, res) => {
-    try {
-        const { restaurant_id } = req.params;
-
-        // প্রোডাক্ট এবং তার প্রথম ইমেজটি নিয়ে আসার কুয়েরি
-        const sql = `
-            SELECT 
-                p.id, 
-                p.name, 
-                p.price, 
-                p.category,
-                (SELECT image_path FROM product_images WHERE product_id = p.id LIMIT 1) as main_image,
-                o.offerPrice,
-                o.status as offer_status,
-                IF(o.id IS NOT NULL AND CURDATE() <= o.endDate AND o.status = 'active', o.offerPrice, p.price) AS final_price
-            FROM products p 
-            LEFT JOIN offers o ON p.id = o.productId
-            WHERE p.restaurant_id = ? 
-            ORDER BY p.category ASC, p.id DESC`;
-
-        const [results] = await db.query(sql, [restaurant_id]);
-
-        // ক্যাটাগরি অনুযায়ী ডাটা গ্রুপ করা (Backend এই গুছিয়ে দিচ্ছি)
-        const menuByCategory = results.reduce((acc, item) => {
-            const cat = item.category || 'General';
-            if (!acc[cat]) acc[cat] = [];
-            acc[cat].push({
-                id: item.id,
-                name: item.name,
-                price: item.final_price,
-                image: item.main_image ? `http://localhost:5000/uploads/${item.main_image}` : null
-            });
-            return acc;
-        }, {});
-
-        res.json({
-            success: true,
-            restaurant_id,
-            menu: menuByCategory
-        });
-    } catch (err) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-});*/
 app.get('/api/download-menu/:restaurant_id', async (req, res) => {
     try {
         const { restaurant_id } = req.params;

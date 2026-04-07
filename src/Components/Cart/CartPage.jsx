@@ -46,25 +46,6 @@ const RestaurantPage = () => {
     };
   }, [cartKey]);
 
-  // --- API Fetch ---
-  /*useEffect(() => {
-    const fetchFullData = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get(`http://localhost:5000/api/public/restaurant/${restaurantSlug}`);
-        if (response.data) {
-          setProfile(response.data.profile);
-          setMenuData(response.data.menu || {});
-        }
-      } catch (err) {
-        setError(err.response?.data?.message || "Restaurant not found or server error");
-      } finally {
-        setTimeout(() => setLoading(false), 800); 
-      }
-    };
-    fetchFullData();
-  }, [restaurantSlug]);*/
-
   // --- API Fetch Function ---
   const fetchFullData = useCallback(async (isSilent = false) => {
     try {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Calendar, Search, Printer, FileText, Hash, Calculator, Banknote, RefreshCw } from 'lucide-react';
+import { Calendar, Search, Printer, FileText, Hash, Calculator, Banknote, RefreshCw, Filter } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
 import Swal from 'sweetalert2';
 import axios from 'axios';
@@ -10,14 +10,14 @@ const TableReport = () => {
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); 
   const [loading, setLoading] = useState(false);
 
   const componentRef = useRef();
 
-  // লোকাল স্টোরেজ থেকে ডাটা নেওয়া
   const restaurantId = localStorage.getItem('resId');
   const restaurantName = localStorage.getItem('resName') || "Our Restaurant";
-  const restaurantLogo = localStorage.getItem('resLogo'); // নিশ্চিত করুন লোগো URL এখানে আছে
+  const restaurantLogo = localStorage.getItem('resLogo');
 
   const handlePrint = useReactToPrint({
     contentRef: componentRef,
@@ -54,18 +54,28 @@ const TableReport = () => {
 
   const stats = useMemo(() => {
     const validOrders = reportData.filter(item => item.order_status !== 'cancelled');
-    const totalInvoice = reportData.length;
+    
+    const displayData = statusFilter === 'all' 
+      ? reportData 
+      : reportData.filter(item => item.order_status === statusFilter);
+
+    const totalInvoice = displayData.length;
+    
     const subTotalSum = validOrders.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
     const netTotalSum = validOrders.reduce((sum, item) => sum + (Number(item.total_amount) || 0), 0);
+
     return { totalInvoice, subTotalSum, netTotalSum };
-  }, [reportData]);
+  }, [reportData, statusFilter]);
 
   const filteredData = useMemo(() => {
-    return reportData.filter(item => 
-      item.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      item.id.toString().includes(searchTerm)
-    );
-  }, [searchTerm, reportData]);
+    return reportData.filter(item => {
+      const matchesSearch = item.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                           item.id.toString().includes(searchTerm);
+      const matchesStatus = statusFilter === 'all' || item.order_status === statusFilter;
+      
+      return matchesSearch && matchesStatus;
+    });
+  }, [searchTerm, reportData, statusFilter]);
 
   const handleFilterByDate = () => {
     if(!fromDate || !toDate) {
@@ -95,7 +105,7 @@ const TableReport = () => {
              </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-gray-400 ml-1">From Date</label>
               <input type="date" className="w-full border rounded-xl p-3 bg-gray-50 text-sm font-bold outline-none" onChange={(e) => setFromDate(e.target.value)} />
@@ -104,6 +114,23 @@ const TableReport = () => {
               <label className="text-[10px] font-black uppercase text-gray-400 ml-1">To Date</label>
               <input type="date" className="w-full border rounded-xl p-3 bg-gray-50 text-sm font-bold outline-none" onChange={(e) => setToDate(e.target.value)} />
             </div>
+            
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-gray-400 ml-1">Order Status</label>
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                <select 
+                  className="w-full border rounded-xl p-3 pl-10 bg-gray-50 text-sm font-bold outline-none appearance-none cursor-pointer"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                >
+                  <option value="all">All Orders</option>
+                  <option value="delivered">Delivered Only</option>
+                  <option value="cancelled">Cancelled Only</option>
+                </select>
+              </div>
+            </div>
+
             <button onClick={handleFilterByDate} className="bg-gray-900 text-white font-black py-4 rounded-xl hover:bg-red-600 transition-all shadow-lg uppercase text-[11px] tracking-widest">
               Generate Report
             </button>
@@ -116,7 +143,6 @@ const TableReport = () => {
         {/* Print Area */}
         <div ref={componentRef} className="bg-white rounded-xl shadow-lg border-t-[5px] border-red-500 overflow-hidden p-6 print:shadow-none print:border-none print:p-0">
           
-          {/* Header for Print Copy (Logo & Name) */}
           <div className="hidden print:flex flex-col items-center mb-8 border-b-2 border-gray-100 pb-6">
               {restaurantLogo ? (
                 <img src={restaurantLogo} alt="Logo" className="h-20 w-auto object-contain mb-3" />
@@ -125,7 +151,7 @@ const TableReport = () => {
               )}
               <h1 className="text-4xl font-black uppercase text-gray-900">{restaurantName}</h1>
               <div className="mt-4 py-1 bg-gray-900 text-white px-6 rounded-full text-[10px] font-black uppercase tracking-[0.2em]">
-                  Sales Summary Report
+                  Sales Summary Report ({statusFilter.toUpperCase()})
               </div>
           </div>
 
@@ -144,7 +170,7 @@ const TableReport = () => {
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print:grid-cols-3 print:gap-4">
-            <StatCard icon={<Hash/>} label="Total Invoice" value={stats.totalInvoice} color="bg-cyan-500" />
+            <StatCard icon={<Hash/>} label={`Invoices (${statusFilter})`} value={stats.totalInvoice} color="bg-cyan-500" />
             <StatCard icon={<Calculator/>} label="Gross Subtotal" value={`৳${stats.subTotalSum.toFixed(2)}`} color="bg-green-500" />
             <StatCard icon={<Banknote/>} label="Net Revenue" value={`৳${stats.netTotalSum.toFixed(2)}`} color="bg-orange-500" />
           </div>
@@ -167,7 +193,7 @@ const TableReport = () => {
                   </tr>
                 </thead>
                 <tbody className="text-sm">
-                  {filteredData.map((item, index) => (
+                  {filteredData.length > 0 ? filteredData.map((item, index) => (
                     <tr key={index} className={`border-b hover:bg-gray-50 transition-colors ${item.order_status === 'cancelled' ? 'bg-red-50 opacity-60 print:text-gray-400' : ''}`}>
                       <td className="p-4 font-bold text-gray-800">#{item.id}</td>
                       <td className="p-4 font-medium">
@@ -177,17 +203,24 @@ const TableReport = () => {
                       <td className="p-4">৳{item.order_status === 'cancelled' ? '0.00' : (item.subtotal || 0)}</td>
                       <td className="p-4 text-red-500">-৳{item.order_status === 'cancelled' ? '0.00' : (item.discount || 0)}</td>
                       <td className="p-4 font-black text-gray-900">৳{item.order_status === 'cancelled' ? '0.00' : item.total_amount}</td>
-                      <td className="p-4 uppercase text-[10px] font-bold">{item.order_status}</td>
+                      <td className="p-4 uppercase text-[10px] font-bold">
+                        <span className={item.order_status === 'delivered' ? 'text-green-600' : item.order_status === 'cancelled' ? 'text-red-600' : ''}>
+                          {item.order_status}
+                        </span>
+                      </td>
                       <td className="p-4 text-gray-500">{new Date(item.created_at).toLocaleDateString()}</td>
                     </tr>
-                  ))}
+                  )) : (
+                    <tr>
+                      <td colSpan="7" className="p-10 text-center font-bold text-gray-400 uppercase tracking-widest">No orders found for this filter.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             )}
           </div>
 
-          {/* Footer for Every Printed Page */}
-          <div className="hidden print:block mt-12 border-t pt-4">
+          <div className="hidden print:block mt-12 border-t pt-8">
               <div className="flex justify-between items-end italic text-[10px] text-gray-400">
                   <div>
                       <p className="font-bold text-gray-600">Generated by FOODMENUBD</p>
@@ -201,7 +234,6 @@ const TableReport = () => {
         </div>
       </div>
       
-      {/* Print Specific CSS */}
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -213,7 +245,6 @@ const TableReport = () => {
   );
 };
 
-// StatCard Component
 const StatCard = ({ icon, label, value, color }) => (
   <div className="flex items-center border rounded-2xl overflow-hidden shadow-sm bg-white print:shadow-none print:border-gray-200">
     <div className={`${color} p-6 text-white print:bg-transparent print:text-black print:p-2`}>

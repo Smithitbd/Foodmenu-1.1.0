@@ -18,7 +18,7 @@ const CreationModal = ({ isOpen, onClose }) => {
       icon: <FaHeadset />,
       color: "bg-blue-50 text-blue-600",
       hoverBg: "hover:bg-blue-600", 
-      action: () => window.open('https://wa.me/01640026138', '_blank')
+      action: () => window.open('https://wa.me/+8801764561996', '_blank')
     },
     {
       id: 2,

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Edit, Eye, Printer, RefreshCcw, X, Globe, Monitor, CheckCircle, Clock, Calendar, LayoutGrid } from 'lucide-react';
+import { Edit, Eye, Printer, RefreshCcw, X, Globe, Monitor, CheckCircle, Clock, Calendar, LayoutGrid, AlertCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
 import toast, { Toaster } from 'react-hot-toast'; 
 import axios from 'axios'; 
@@ -156,15 +156,16 @@ const OrderList = () => {
             <tbody className="divide-y divide-gray-100">
               {filteredOrders.map(order => {
                 const isOnline = ['Delivery', 'Pickup', 'Dine-In'].includes(order.order_type);
+                const isCancelled = order.order_status === 'cancelled';
+                
                 return (
-                  <tr key={order.id} className="hover:bg-gray-50/50 transition-all">
+                  <tr key={order.id} className={`hover:bg-gray-50/50 transition-all ${isCancelled ? 'bg-red-50/30' : ''}`}>
                     <td className="p-4">
-                      <div className="font-bold text-gray-800">#{order.id}</div>
+                      <div className={`font-bold ${isCancelled ? 'text-gray-400 line-through' : 'text-gray-800'}`}>#{order.id}</div>
                       <div className={`flex items-center gap-1 text-[9px] font-black uppercase ${isOnline ? 'text-blue-500' : 'text-orange-500'}`}>
                         {isOnline ? <Globe size={10}/> : <Monitor size={10}/>}
                         {order.order_type || "Offline"}
                       </div>
-                      {/* Table Number Badge for Offline Orders */}
                       {order.order_type === 'Offline' && order.table_id && (
                         <div className="mt-1 flex items-center gap-1 text-[9px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded w-fit border border-red-100">
                           <LayoutGrid size={10}/> {order.table_id}
@@ -172,33 +173,41 @@ const OrderList = () => {
                       )}
                     </td>
                     <td className="p-4">
-                      <div className="font-bold text-gray-800">{order.customer_name}</div>
+                      <div className={`font-bold ${isCancelled ? 'text-gray-400' : 'text-gray-800'}`}>{order.customer_name}</div>
                       <div className="text-[11px] text-gray-500">{order.customer_phone}</div>
                     </td>
                     <td className="p-4">
-                      <div className="font-black text-gray-900">৳{order.total_amount}</div>
-                      {order.due_amount > 0 ? (
-                        <div className="mt-1">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-600 uppercase">Due: ৳{order.due_amount}</span>
-                          <div className="text-[9px] text-gray-400 mt-1 italic leading-tight">Ref: {order.reference || 'No Ref'}</div>
-                        </div>
+                      {isCancelled ? (
+                         <div className="mt-1">
+                            <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-500 text-white uppercase">Cancelled</span>
+                         </div>
                       ) : (
-                        <div className="mt-1">
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-green-100 text-green-600 uppercase">Fully Paid</span>
-                          {order.payment_date && (
-                             <div className="text-[8px] text-gray-400 mt-1 flex items-center gap-1">
-                               <Calendar size={10}/> {new Date(order.payment_date).toLocaleDateString()}
-                             </div>
+                        <>
+                          <div className="font-black text-gray-900">৳{order.total_amount}</div>
+                          {order.due_amount > 0 ? (
+                            <div className="mt-1">
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-red-100 text-red-600 uppercase">Due: ৳{order.due_amount}</span>
+                              <div className="text-[9px] text-gray-400 mt-1 italic leading-tight">Ref: {order.reference || 'No Ref'}</div>
+                            </div>
+                          ) : (
+                            <div className="mt-1">
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-green-100 text-green-600 uppercase">Fully Paid</span>
+                              {order.payment_date && (
+                                 <div className="text-[8px] text-gray-400 mt-1 flex items-center gap-1">
+                                   <Calendar size={10}/> {new Date(order.payment_date).toLocaleDateString()}
+                                 </div>
+                              )}
+                            </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </td>
                     <td className="p-4">
-                      <div className={`flex items-center gap-1 text-[10px] font-black uppercase ${order.order_status === 'delivered' ? 'text-green-600' : 'text-amber-500'}`}>
-                        {order.order_status === 'delivered' ? <CheckCircle size={12}/> : <Clock size={12}/>}
+                      <div className={`flex items-center gap-1 text-[10px] font-black uppercase ${isCancelled ? 'text-red-600' : order.order_status === 'delivered' ? 'text-green-600' : 'text-amber-500'}`}>
+                        {isCancelled ? <X size={12}/> : order.order_status === 'delivered' ? <CheckCircle size={12}/> : <Clock size={12}/>}
                         {order.order_status || 'Pending'}
                       </div>
-                      <div className="text-[9px] text-gray-400 font-bold uppercase">{order.payment_method}</div>
+                      {!isCancelled && <div className="text-[9px] text-gray-400 font-bold uppercase">{order.payment_method}</div>}
                     </td>
                     <td className="p-4 flex justify-center gap-2">
                       <button title="View" onClick={() => handleViewDetails(order)} className="p-2 bg-gray-100 rounded-lg hover:bg-black hover:text-white transition-all"><Eye size={16}/></button>
@@ -221,10 +230,16 @@ const OrderList = () => {
             <h2 className="text-xl font-bold">{restaurantName}</h2>
             <p className="text-[10px]">Invoice #{selectedOrder?.id}</p>
           </div>
+          
+          {selectedOrder?.order_status === 'cancelled' && (
+            <div className="border-2 border-red-600 text-red-600 text-center py-1 mb-2 font-black text-xs uppercase rotate-[-2deg]">
+              Order Cancelled
+            </div>
+          )}
+
           <div className="text-[11px] mb-4 space-y-1">
             <p><strong>Customer:</strong> {selectedOrder?.customer_name}</p>
             <p><strong>Order Type:</strong> {selectedOrder?.order_type}</p>
-            {/* Print Table ID if exists */}
             {selectedOrder?.table_id && <p className="text-[12px] font-black uppercase"><strong>Table:</strong> {selectedOrder?.table_id}</p>}
             <p><strong>Date:</strong> {new Date(selectedOrder?.created_at).toLocaleString()}</p>
           </div>
@@ -248,14 +263,17 @@ const OrderList = () => {
             <p className="flex justify-between"><span>Subtotal:</span> <span>৳{selectedOrder?.subtotal}</span></p>
             {selectedOrder?.discount > 0 && <p className="flex justify-between"><span>Discount:</span> <span>-৳{selectedOrder?.discount}</span></p>}
             <p className="flex justify-between border-t border-black pt-1"><span>Total:</span> <span>৳{selectedOrder?.total_amount}</span></p>
-            {selectedOrder?.due_amount > 0 ? (
+            
+            {selectedOrder?.order_status === 'cancelled' ? (
+                <p className="text-center text-red-600 pt-2 font-black uppercase underline">Status: Cancelled</p>
+            ) : selectedOrder?.due_amount > 0 ? (
                <p className="flex justify-between text-red-600"><span>Due:</span> <span>৳{selectedOrder?.due_amount}</span></p>
             ) : (
                <p className="text-center bg-black text-white py-0.5 mt-2">PAID</p>
             )}
           </div>
           <div className="mt-6 text-center text-[9px] border-t border-dashed pt-2 uppercase">
-            Thank you for dining with us!
+            {selectedOrder?.order_status === 'cancelled' ? 'Voided Invoice' : 'Thank you for dining with us!'}
           </div>
         </div>
       </div>
@@ -266,7 +284,7 @@ const OrderList = () => {
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
             <div className="p-5 bg-gray-900 text-white flex justify-between items-center">
               <div>
-                <h3 className="font-black text-lg">Order #{selectedOrder?.id}</h3>
+                <h3 className={`font-black text-lg ${selectedOrder?.order_status === 'cancelled' ? 'line-through text-gray-400' : ''}`}>Order #{selectedOrder?.id}</h3>
                 <div className="flex items-center gap-2">
                    <p className="text-[10px] text-gray-400 uppercase tracking-widest">{selectedOrder?.order_type}</p>
                    {selectedOrder?.table_id && (
@@ -277,16 +295,23 @@ const OrderList = () => {
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X /></button>
             </div>
             <div className="p-6">
+              {selectedOrder?.order_status === 'cancelled' && (
+                <div className="mb-4 bg-red-50 border border-red-200 p-3 rounded-2xl flex items-center gap-3 text-red-600">
+                  <AlertCircle size={20}/>
+                  <p className="text-xs font-black uppercase">This order has been cancelled.</p>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-gray-50 p-3 rounded-2xl">
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Customer</p>
                   <p className="font-bold text-gray-800">{selectedOrder?.customer_name}</p>
                   <p className="text-xs text-gray-500">{selectedOrder?.customer_phone}</p>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-2xl border-l-4 border-red-500">
+                <div className={`bg-gray-50 p-3 rounded-2xl border-l-4 ${selectedOrder?.order_status === 'cancelled' ? 'border-red-600' : 'border-red-500'}`}>
                   <p className="text-[10px] font-bold text-gray-400 uppercase">Billing Status</p>
-                  <p className={`font-black ${selectedOrder?.due_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {selectedOrder?.due_amount > 0 ? `DUE: ৳${selectedOrder?.due_amount}` : 'PAID'}
+                  <p className={`font-black ${selectedOrder?.order_status === 'cancelled' ? 'text-red-600 uppercase' : selectedOrder?.due_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {selectedOrder?.order_status === 'cancelled' ? 'CANCELLED' : selectedOrder?.due_amount > 0 ? `DUE: ৳${selectedOrder?.due_amount}` : 'PAID'}
                   </p>
                 </div>
               </div>
@@ -303,7 +328,7 @@ const OrderList = () => {
                   <tbody>
                     {orderDetails.map((item, idx) => (
                       <tr key={idx} className="border-b border-gray-50">
-                        <td className="py-3 font-semibold text-gray-700">{item.product_name}</td>
+                        <td className={`py-3 font-semibold ${selectedOrder?.order_status === 'cancelled' ? 'text-gray-400 line-through' : 'text-gray-700'}`}>{item.product_name}</td>
                         <td className="py-3 text-center">{item.quantity}</td>
                         <td className="py-3 text-right font-bold">৳{item.total_price}</td>
                       </tr>
@@ -314,14 +339,14 @@ const OrderList = () => {
 
               <div className="bg-blue-50 p-4 rounded-2xl flex justify-between items-center border border-blue-100">
                 <span className="font-bold text-gray-600">Grand Total:</span>
-                <span className="font-black text-2xl text-blue-700">৳{selectedOrder?.total_amount}</span>
+                <span className={`font-black text-2xl ${selectedOrder?.order_status === 'cancelled' ? 'text-gray-400' : 'text-blue-700'}`}>৳{selectedOrder?.total_amount}</span>
               </div>
 
               <button 
                 onClick={() => { setIsModalOpen(false); setTimeout(() => handlePrint(), 300); }}
                 className="w-full mt-4 py-3 bg-gray-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-black transition-all shadow-lg active:scale-95"
               >
-                <Printer size={18}/> Print Invoice
+                <Printer size={18}/> {selectedOrder?.order_status === 'cancelled' ? 'Print Void Receipt' : 'Print Invoice'}
               </button>
             </div>
           </div>
