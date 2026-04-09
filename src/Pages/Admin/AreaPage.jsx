@@ -24,9 +24,21 @@ const AreaPage = () => {
     { id: 6, customerName: "Tasty Bite", mobile: "01912-112233", entryDate: "2024-01-15", restaurantName: "Tasty Corner", area: "Zindabazar", address: "Main Road, Sylhet", price: 800, image: "https://via.placeholder.com/40", subtotal: 800, discount: 0, paid: 800, due: 0, paymentType: "Cash", subscription: "Paid", status: "Active" },
   ]);
 
-  useEffect(() => {
-    setTimeout(() => setLoading(false), 600);
-  }, [areaName]);
+// ২. অফার ডাটা লোড - area name uppercase match
+useEffect(() => {
+    const fetchOffers = async () => {
+        try {
+            const upperArea = areaName.toUpperCase().replace(/-/g, ' ');
+            const res = await axios.get(`http://localhost:5000/api/offerss?area=${encodeURIComponent(upperArea)}`);
+            if (res.data.success) {
+                setOffers(res.data.offers);
+            }
+        } catch (err) {
+            console.error("Offers Fetch Error:", err);
+        }
+    };
+    if (areaName) fetchOffers();
+}, [areaName]);
 
   // --- Search Logic ---
   const filteredData = restaurants.filter(item => 

@@ -15,19 +15,42 @@ const saltRounds = 10;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadDir = path.join(__dirname, 'uploads');
+const adminUploadDir = path.join(__dirname, 'uploads', 'AdminProfile');
 app.use(cors()); 
 app.use(express.json());
 
+//path.join() ==> path.resolve()
+
 // ফোল্ডার না থাকলে তৈরি করবে
-if (!fs.existsSync(uploadDir)) {
+/*if (!fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
-}
+}*/
+
+[uploadDir, adminUploadDir].forEach(dir => {
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+});
+
+const restaurantUploadDir = path.join(__dirname, 'uploads', 'Restaurants');
+if (!fs.existsSync(restaurantUploadDir)) fs.mkdirSync(restaurantUploadDir, { recursive: true });
+
+const areaUploadDir = path.join(__dirname, 'uploads', 'Area');
+if (!fs.existsSync(areaUploadDir)) fs.mkdirSync(areaUploadDir, { recursive: true });
+
+const topResUploadDir = path.join(__dirname, 'uploads', 'TopRestrurant');
+if (!fs.existsSync(topResUploadDir)) fs.mkdirSync(topResUploadDir, { recursive: true });
+
+const offersUploadDir = path.join(__dirname, 'uploads', 'offers');
+if (!fs.existsSync(offersUploadDir)) fs.mkdirSync(offersUploadDir, { recursive: true });
+
 
 const storage = multer.memoryStorage(); 
 
 const upload = multer({ 
   storage: storage
 });
+const uploadAdmin = multer({ storage: storage, limits: { fileSize: 1 * 1024 * 1024 } });
+const uploadOffer = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -40,7 +63,7 @@ const db = mysql.createPool({
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'foodmenubd',
+    database: 'jubo',
     waitForConnections: true,
     connectionLimit: 10
 }).promise();
@@ -1593,12 +1616,48 @@ app.post('/api/contact', (req, res) => {
 });
 
 // Admin Dashboard GET API
-app.get('/api/admin/messages', (req, res) => {
-    const sql = "SELECT * FROM contact_messages ORDER BY created_at DESC"; // contacts পাল্টে contact_messages দিন
-    db.query(sql, (err, results) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
+app.get('/api/admin/messages', async (req, res) => {
+    try {
+        const sql = "SELECT * FROM contact_messages ORDER BY created_at DESC";
+        // mysql2/promise এ এভাবে কুয়েরি করতে হয়
+        const [results] = await db.query(sql); 
+        
         res.status(200).json(results);
-    });
+    } catch (err) {
+        console.error("Error fetching messages:", err);
+        res.status(500).json({ 
+            success: false, 
+            message: "Database error occurred", 
+            error: err.message 
+        });
+    }
+});
+
+// ২. মেসেজ ডিলিট করার API (DELETE)
+app.delete('/api/admin/messages/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const sql = "DELETE FROM contact_messages WHERE id = ?";
+        const [result] = await db.query(sql, [id]);
+
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Message not found" 
+            });
+        }
+
+        res.status(200).json({ 
+            success: true, 
+            message: "Message deleted successfully" 
+        });
+    } catch (err) {
+        console.error("Error deleting message:", err);
+        res.status(500).json({ 
+            success: false, 
+            message: "Failed to delete message" 
+        });
+    }
 });
 
 //API for Menu download
@@ -1669,6 +1728,448 @@ app.get('/api/download-menu/:restaurant_id', async (req, res) => {
     } catch (err) {
         console.error("API Error:", err);
         res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+// SuperAdmin 
+//AddArea.jsx
+app.get('/api/get-area', async (req, res) => {
+    try {
+        const [rows] = await db.query("SELECT * FROM area");
+        res.json(rows);
+    } catch (err) {
+        res.status(500).json({ message: "Database error" });
+    }
+});
+app.post('/api/admin/add-area', upload.single('image'), async (req, res) => {
+    try {
+        const { name } = req.body;
+        let fileName = null;
+        if (req.file) {
+            fileName = `area-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(600, 400).webp().toFile(path.join(areaUploadDir, fileName));
+        }
+        await db.query("INSERT INTO area (name, image) VALUES (?, ?)", [name, fileName]);
+        res.json({ message: "Area Added!" });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+app.delete('/api/admin/delete-area/:id', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT image FROM area WHERE id = ?", [req.params.id]);
+        const img = results[0]?.image;
+        if (img && fs.existsSync(path.join(areaUploadDir, img))) fs.unlinkSync(path.join(areaUploadDir, img));
+        await db.query("DELETE FROM area WHERE id = ?", [req.params.id]);
+        res.json({ message: "Deleted!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.put('/api/admin/update-area/:id', upload.single('image'), async (req, res) => {
+    const { id } = req.params;
+    const { name } = req.body;
+    try {
+        const [results] = await db.query("SELECT image FROM area WHERE id = ?", [id]);
+        let fileName = results[0]?.image;
+        if (req.file) {
+            if (fileName && fs.existsSync(path.join(areaUploadDir, fileName))) fs.unlinkSync(path.join(areaUploadDir, fileName));
+            fileName = `area-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(600, 400).webp().toFile(path.join(areaUploadDir, fileName));
+        }
+        await db.query("UPDATE area SET name = ?, image = ? WHERE id = ?", [name, fileName, id]);
+        res.json({ message: "Updated!" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+//AddRestaurant.jsx:
+app.post('/api/add-restaurant', upload.single('image'), async (req, res) => {
+    try {
+        const { customerName, mobile, restaurantName, restaurantType, area, ratings, address, price, discount, paid, subscription, paymentMethod, hasOffer, date } = req.body;
+        const priceNum = parseFloat(price) || 0;
+        const discountNum = parseFloat(discount) || 0;
+        const paidNum = parseFloat(paid) || 0;
+        const due = (priceNum - discountNum) - paidNum;
+        const offerValue = parseInt(hasOffer) || 0;
+        let finalFileName = null;
+        if (req.file) {
+            finalFileName = `res-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(800, 600, { fit: 'cover' }).webp({ quality: 80 }).toFile(path.join(restaurantUploadDir, finalFileName));
+        }
+        const sql = `INSERT INTO allrestaurants (customer_name, mobile, restaurant_name, area, ratings, address, image_path, price, discount, paid, due, subscription, payment_method, order_date, restaurant_type, has_offer) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        await db.query(sql, [customerName, mobile, restaurantName, area, ratings || 0, address, finalFileName, priceNum, discountNum, paidNum, due, subscription, paymentMethod, date, restaurantType, offerValue]);
+        res.status(200).json({ message: "Success" });
+    } catch (error) {
+        res.status(500).json({ message: "Internal Server Error" });
+    }
+});
+
+
+//Area page
+app.get('/api/offerss', async (req, res) => {
+    const area = req.query.area;
+    try {
+        const [results] = await db.query(
+            "SELECT * FROM offers WHERE UPPER(selectedAreas) = UPPER(?) AND status = 'active' ORDER BY id DESC",
+            [area]
+        );
+        res.json({ success: true, offers: results });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+
+
+//chatlist.jsx
+app.get('/api/chatlist', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT * FROM contact_messages ORDER BY id DESC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/chatlist', async (req, res) => {
+    try {
+        const { sender_name, email, description } = req.body;
+        if (!sender_name || !email || !description) {
+            return res.status(400).json({ message: "All fields are required!" });
+        }
+        const [result] = await db.query(
+            "INSERT INTO contact_messages (sender_name, email, description) VALUES (?, ?, ?)",
+            [sender_name, email, description]
+        );
+        res.status(201).json({ message: "Message Sent!", id: result.insertId });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.delete('/api/chatlist/:id', async (req, res) => {
+    try {
+        const [result] = await db.query("DELETE FROM contact_messages WHERE id = ?", [req.params.id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: "Message not found!" });
+        res.json({ message: "Deleted Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+//offerlist
+app.get('/api/addoffers', async (req, res) => {
+    try {
+        const [result] = await db.query("SELECT * FROM offers ORDER BY id DESC");
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/addoffers', uploadOffer.single('offerImage'), async (req, res) => {
+    try {
+        const { offerTitle, area, itemName, offerPrice, totalQuantity, endDate } = req.body;
+        let imagePath = null;
+        if (req.file) {
+            const fileName = `offer-${Date.now()}.webp`;
+            const fullPath = path.join(__dirname, 'uploads', 'offers', fileName);
+            await sharp(req.file.buffer).resize(600, 400, { fit: 'cover' }).webp({ quality: 80 }).toFile(fullPath);
+            imagePath = fileName;
+        }
+        const sql = `INSERT INTO offers (offerTitle, area, itemName, offerPrice, startDate, endDate, selectedAreas, quantityType, totalQuantity, offerImage, status) VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'active')`;
+        const values = [offerTitle, area, itemName, offerPrice, endDate, area, totalQuantity, totalQuantity, imagePath];
+        const [result] = await db.query(sql, values);
+        res.status(201).json({ success: true, message: "Offer Created Successfully!", id: result.insertId, image: imagePath });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message });
+    }
+});
+app.put('/api/addoffers/:id', uploadOffer.single('offerImage'), async (req, res) => {
+    const { id } = req.params;
+    const { offerTitle, area, itemName, offerPrice, totalQuantity, endDate } = req.body;
+    try {
+        const [results] = await db.query("SELECT offerImage FROM offers WHERE id = ?", [id]);
+        if (results.length === 0) return res.status(404).json({ message: "Not found" });
+        let imagePath = results[0].offerImage;
+        if (req.file) {
+            if (imagePath) {
+                const oldPath = path.join(__dirname, 'uploads', 'offers', imagePath);
+                if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+            }
+            const fileName = `offer-${Date.now()}.webp`;
+            const fullPath = path.join(__dirname, 'uploads', 'offers', fileName);
+            await sharp(req.file.buffer).resize(600, 400, { fit: 'cover' }).webp({ quality: 80 }).toFile(fullPath);
+            imagePath = fileName;
+        }
+        await db.query(
+            `UPDATE offers SET offerTitle=?, area=?, selectedAreas=?, itemName=?, offerPrice=?, quantityType=?, totalQuantity=?, endDate=?, offerImage=? WHERE id=?`,
+            [offerTitle, area, area, itemName, offerPrice, totalQuantity, totalQuantity, endDate, imagePath, id]
+        );
+        res.json({ message: "Updated Successfully", image: imagePath });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.delete('/api/addoffers/:id', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT offerImage FROM offers WHERE id = ?", [req.params.id]);
+        if (results.length === 0) return res.status(404).json({ message: "Not found" });
+        const img = results[0].offerImage;
+        if (img) {
+            const imgPath = path.join(offersUploadDir, img);
+            if (fs.existsSync(imgPath)) fs.unlinkSync(imgPath);
+        }
+        await db.query("DELETE FROM offers WHERE id = ?", [req.params.id]);
+        res.json({ message: "Deleted Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+//Registration
+//SuperAdmin User
+app.post('/api/superadmin/login', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const [results] = await db.query("SELECT * FROM superadmins WHERE email = ?", [email]);
+        if (results.length > 0 && password === results[0].password) {
+            res.json({ message: "Login Successful", admin: { id: results[0].id, name: results[0].name, email: results[0].email, role: results[0].role, image: results[0].image } });
+        } else {
+            res.status(401).json({ message: "Invalid Credentials" });
+        }
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.get('/api/superadmin/users', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT id, name, email, password, role, image FROM superadmins ORDER BY id DESC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/superadmin/register', (req, res) => {
+    // 1. Manually invoke Multer to catch its errors properly
+    uploadAdmin.single('image')(req, res, async (err) => {
+        if (err instanceof multer.MulterError) {
+            if (err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({ message: "File too large. Max 1MB allowed." });
+            }
+            return res.status(400).json({ message: err.message });
+        } else if (err) {
+            return res.status(500).json({ message: "Unknown upload error", error: err.message });
+        }
+
+        // 2. If upload succeeds, proceed with database logic
+        try {
+            const { name, email, password, role } = req.body;
+            let fileName = null;
+
+            if (req.file) {
+                fileName = `admin-${Date.now()}.webp`;
+                await sharp(req.file.buffer)
+                    .resize(300, 300, { fit: 'cover' })
+                    .webp()
+                    .toFile(path.join(adminUploadDir, fileName));
+            }
+
+            await db.query(
+                "INSERT INTO superadmins (name, email, password, role, image) VALUES (?, ?, ?, ?, ?)", 
+                [name, email, password, role, fileName]
+            );
+            
+            res.status(201).json({ message: "User created" });
+
+        } catch (e) {
+            // 3. Log the ACTUAL error to your Node console so you can debug!
+            console.error("Superadmin Registration Error:", e);
+            
+            // Check for duplicate email error from MySQL
+            if (e.code === 'ER_DUP_ENTRY') {
+                return res.status(409).json({ message: "Email already exists" });
+            }
+
+            // Send back the actual error message to the frontend for debugging
+            res.status(500).json({ message: "Internal Server Error", error: e.message });
+        }
+    });
+});
+app.put('/api/superadmin/update/:id', uploadAdmin.single('image'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [results] = await db.query("SELECT image FROM superadmins WHERE id = ?", [id]);
+        let fileName = results[0]?.image;
+        if (req.file) {
+            if (fileName && fs.existsSync(path.join(adminUploadDir, fileName))) fs.unlinkSync(path.join(adminUploadDir, fileName));
+            fileName = `admin-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(300, 300, { fit: 'cover' }).webp().toFile(path.join(adminUploadDir, fileName));
+        }
+        await db.query("UPDATE superadmins SET name=?, email=?, password=?, role=?, image=? WHERE id=?",
+            [req.body.name, req.body.email, req.body.password, req.body.role, fileName, id]);
+        res.json({ message: "Updated successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.delete('/api/superadmin/delete/:id', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT image FROM superadmins WHERE id = ?", [req.params.id]);
+        const img = results[0]?.image;
+        if (img && fs.existsSync(path.join(adminUploadDir, img))) fs.unlinkSync(path.join(adminUploadDir, img));
+        await db.query("DELETE FROM superadmins WHERE id = ?", [req.params.id]);
+        res.json({ message: "Deleted" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+
+//Restaurant add request
+app.get('/api/add-requests', async (req, res) => {
+    try {
+        const [rows] = await db.query('SELECT * FROM restaurants ORDER BY created_at DESC');
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error("Fetch Error:", error);
+        res.status(500).json({ error: "Failed to fetch restaurants" });
+    }
+});
+
+// 2. DELETE: Remove a restaurant by ID
+app.delete('/api/add-requests/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const [result] = await db.query('DELETE FROM restaurants WHERE id = ?', [id]);
+        if (result.affectedRows === 0) {
+            return res.status(404).json({ message: "Restaurant not found" });
+        }
+        res.status(200).json({ message: "Deleted successfully" });
+    } catch (error) {
+        console.error("Delete Error:", error);
+        res.status(500).json({ error: "Failed to delete" });
+    }
+});
+
+// 3. PUT: Toggle Status (Active/Inactive)
+app.put('/api/restaurants/:id/toggle-status', async (req, res) => {
+    const { id } = req.params;
+    try {
+        // First, find the current status
+        const [rows] = await db.query('SELECT status FROM restaurants WHERE id = ?', [id]);
+        
+        if (rows.length === 0) return res.status(404).json({ message: "Not found" });
+
+        const currentStatus = rows[0].status;
+        const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+
+        // Update to the flipped status
+        await db.query('UPDATE restaurants SET status = ? WHERE id = ?', [newStatus, id]);
+
+        res.status(200).json({ status: newStatus });
+    } catch (error) {
+        console.error("Toggle Error:", error);
+        res.status(500).json({ error: "Update failed" });
+    }
+});
+
+
+//REview
+app.get('/api/reviews', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT * FROM reviews ORDER BY id DESC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch reviews" });
+    }
+});
+app.post('/api/reviews', async (req, res) => {
+    try {
+        const { name, message } = req.body;
+        if (!name || !message) return res.status(400).json({ message: "Name and Message are required!" });
+        const [result] = await db.query("INSERT INTO reviews (name, message) VALUES (?, ?)", [name, message]);
+        res.status(201).json({ message: "Review Published!", id: result.insertId });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to save review" });
+    }
+});
+app.put('/api/reviews/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, message } = req.body;
+        if (!name || !message) return res.status(400).json({ message: "Updated name and message are required!" });
+        const [result] = await db.query("UPDATE reviews SET name = ?, message = ? WHERE id = ?", [name, message, id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: "Review not found!" });
+        res.json({ message: "Review Updated Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Update failed" });
+    }
+});
+app.delete('/api/reviews/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const [result] = await db.query("DELETE FROM reviews WHERE id = ?", [id]);
+        if (result.affectedRows === 0) return res.status(404).json({ message: "Review not found!" });
+        res.json({ message: "Review Deleted Successfully" });
+    } catch (err) {
+        res.status(500).json({ error: "Delete failed" });
+    }
+});
+
+
+//Top restaurants
+app.get('/api/top_restaurants', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT * FROM top_restaurants ORDER BY id DESC");
+        res.json(results);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.post('/api/top_restaurants', upload.single('image'), async (req, res) => {
+    try {
+        const { viewLink, messengerLink } = req.body;
+        let fileName = null;
+        if (req.file) {
+            fileName = `top-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(500, 350, { fit: 'cover' }).webp({ quality: 80 }).toFile(path.join(topResUploadDir, fileName));
+        }
+        const [result] = await db.query("INSERT INTO top_restaurants (viewLink, messengerLink, image) VALUES (?, ?, ?)", [viewLink, messengerLink, fileName]);
+        res.status(201).json({ message: "Successfully Added", id: result.insertId, image: fileName });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+app.put('/api/top_restaurants/:id', upload.single('image'), async (req, res) => {
+    const { id } = req.params;
+    const { viewLink, messengerLink } = req.body;
+    try {
+        const [results] = await db.query("SELECT image FROM top_restaurants WHERE id = ?", [id]);
+        if (results.length === 0) return res.status(404).json({ error: "Not found" });
+        let fileName = results[0].image;
+        if (req.file) {
+            if (fileName && fs.existsSync(path.join(topResUploadDir, fileName))) fs.unlinkSync(path.join(topResUploadDir, fileName));
+            fileName = `top-${Date.now()}.webp`;
+            await sharp(req.file.buffer).resize(500, 350, { fit: 'cover' }).webp().toFile(path.join(topResUploadDir, fileName));
+        }
+        await db.query("UPDATE top_restaurants SET viewLink = ?, messengerLink = ?, image = ? WHERE id = ?", [viewLink, messengerLink, fileName, id]);
+        res.json({ message: "Updated successfully", image: fileName });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+})
+app.delete('/api/top_restaurants/:id', async (req, res) => {
+    try {
+        const [results] = await db.query("SELECT image FROM top_restaurants WHERE id = ?", [req.params.id]);
+        if (results.length > 0) {
+            const fileName = results[0].image;
+            if (fileName && fs.existsSync(path.join(topResUploadDir, fileName))) fs.unlinkSync(path.join(topResUploadDir, fileName));
+        }
+        await db.query("DELETE FROM top_restaurants WHERE id = ?", [req.params.id]);
+        res.json({ message: "Deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 

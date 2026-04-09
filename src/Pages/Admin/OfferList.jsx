@@ -1,362 +1,417 @@
-import React, { useState } from 'react';
-import { Trash2, Search, Calendar, Phone, DollarSign, Tag, Utensils, AlertCircle, Layers, Clock, ArrowRight, Edit3, History, X, Save, Lock, ShoppingBag, BarChart3, Timer } from 'lucide-react';
-import Swal from 'sweetalert2';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Trash2, X, Plus, Upload, MapPin, Loader2, Edit2, Package } from 'lucide-react';
 import toast, { Toaster } from 'react-hot-toast';
+import axios from 'axios';
+import Swal from 'sweetalert2';
+
+const API_BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000' : '';
 
 const OfferList = () => {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [offers, setOffers] = useState([]);
+  const [areas, setAreas] = useState([]);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingOffer, setEditingOffer] = useState(null);
-  
-  // ১. Logs State
-  const [logs, setLogs] = useState([`System initialized at ${new Date().toLocaleDateString()}`]);
+  const [editOffer, setEditOffer] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  // ২. Database History Demo Data 
-  const [pastOffers, setPastOffers] = useState([
-    { 
-      id: 101, 
-      restaurantName: "CINEVIBE", 
-      mobile: "01311796186", 
-      itemName: "Burger Combo", 
-      sales: 450, // how much sell
-      price: 150, 
-      from: "2023-11-01", 
-      to: "2023-11-15",
-      totalDays: 14
-    },
-    { 
-      id: 102, 
-      restaurantName: "Kacchi Ghar", 
-      mobile: "01700000000", 
-      itemName: "Basmati Kacchi", 
-      sales: 1200, 
-      price: 220, 
-      from: "2023-10-01", 
-      to: "2023-10-30",
-      totalDays: 29
+  // ✅ Add form state
+  const [addImageFile, setAddImageFile] = useState(null);
+  const [addImagePreview, setAddImagePreview] = useState(null);
+  const [addForm, setAddForm] = useState({
+    offerTitle: '', area: '', itemName: '', offerPrice: '', totalQuantity: '', endDate: ''
+  });
+
+  // ✅ Edit form state
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreview, setEditImagePreview] = useState(null);
+  const [editForm, setEditForm] = useState({
+    offerTitle: '', area: '', itemName: '', offerPrice: '', totalQuantity: '', endDate: ''
+  });
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [areasRes, offersRes] = await Promise.all([
+        axios.get(`${API_BASE_URL}/api/get-area`),
+        axios.get(`${API_BASE_URL}/api/addoffers`)
+      ]);
+      setAreas(Array.isArray(areasRes.data) ? areasRes.data : []);
+      setOffers(Array.isArray(offersRes.data) ? offersRes.data : []);
+    } catch (err) {
+      toast.error("Failed to load data");
     }
-  ]);
+  }, []);
 
-  const [offers, setOffers] = useState([
-    { 
-      id: 2, 
-      restaurantName: "MRINAL RESTAURANT", 
-      itemName: "Winter Platter", 
-      price: 170, 
-      quantity: "1:1", 
-      mobile: "01311796186", 
-      from: "2023-12-25", 
-      to: "2026-01-15", 
-      image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop" 
-    },
+  useEffect(() => { fetchData(); }, [fetchData]);
 
-    { 
-      id: 3, 
-      restaurantName: "JUBORAJ RESTAURANT", 
-      itemName: "Winter Platter", 
-      price: 170, 
-      quantity: "1:1", 
-      mobile: "01311796186", 
-      from: "2023-12-25", 
-      to: "2026-01-15", 
-      image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop" 
-    },
+  // ✅ ADD
+  const handleAddOffer = async (e) => {
+    e.preventDefault();
+    if (!addImageFile) {
+      toast.error("Please select an image!");
+      return;
+    }
+    setLoading(true);
 
-    { 
-      id: 1, 
-      restaurantName: "CINEVIBE RESTAURANT", 
-      itemName: "Winter Platter", 
-      price: 170, 
-      quantity: "1:1", 
-      mobile: "01311796186", 
-      from: "2023-12-25", 
-      to: "2026-01-15", 
-      image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400&h=400&fit=crop" 
-    },
-  ]);
+    const formData = new FormData();
+    formData.append('offerImage', addImageFile);
+    formData.append('offerTitle', addForm.offerTitle);
+    formData.append('area', addForm.area);
+    formData.append('itemName', addForm.itemName);
+    formData.append('offerPrice', addForm.offerPrice);
+    formData.append('totalQuantity', addForm.totalQuantity);
+    formData.append('endDate', addForm.endDate);
 
-  // --- ADVANCED HISTORY ANALYTICS MODAL ---
-  const checkAdvancedHistory = () => {
-    Swal.fire({
-      title: '<span className="italic uppercase font-black text-gray-800">Sales & Activity Analytics</span>',
-      width: '900px',
-      html: `
-        <div class="text-left font-sans">
-          <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-              <p class="text-[9px] font-black text-blue-400 uppercase tracking-widest">Total Sales (Past)</p>
-              <p class="text-2xl font-black text-blue-700 underline decoration-2 underline-offset-4">1,650 <span class="text-xs uppercase italic font-bold text-blue-400">Pcs</span></p>
-            </div>
-            <div class="bg-green-50 p-4 rounded-2xl border border-green-100">
-              <p class="text-[9px] font-black text-green-400 uppercase tracking-widest">Revenue Impact</p>
-              <p class="text-2xl font-black text-green-700">৳ 2.4L</p>
-            </div>
-             <div class="bg-red-50 p-4 rounded-2xl border border-red-100">
-              <p class="text-[9px] font-black text-red-400 uppercase tracking-widest">Logs Count</p>
-              <p class="text-2xl font-black text-red-700">${logs.length}</p>
-            </div>
-          </div>
+    // Debug
+    for (let [k, v] of formData.entries()) {
+      console.log(k, v instanceof File ? `FILE:${v.name}(${v.size}b)` : v);
+    }
 
-          <div class="mb-4 flex gap-2 border-b pb-2">
-            <button class="px-4 py-1.5 bg-gray-900 text-white rounded-lg text-[10px] font-black uppercase">Offer History</button>
-          </div>
-
-          <div class="overflow-hidden border rounded-2xl bg-white shadow-inner">
-            <table class="w-full text-[11px]">
-              <thead class="bg-gray-50 border-b">
-                <tr class="text-gray-400 uppercase font-black tracking-tighter">
-                  <th class="p-3">Restaurant</th>
-                  <th class="p-3">Item & Mobile</th>
-                  <th class="p-3 text-center">Sales (Qty)</th>
-                  <th class="p-3 text-center">Period</th>
-                  <th class="p-3 text-center">Days</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-gray-100">
-                ${pastOffers.map(o => `
-                  <tr class="hover:bg-gray-50 transition-colors">
-                    <td class="p-3 font-black text-gray-800 italic uppercase">${o.restaurantName}</td>
-                    <td class="p-3">
-                       <p class="font-bold text-gray-500">${o.itemName}</p>
-                       <p class="text-[9px] text-blue-500">${o.mobile}</p>
-                    </td>
-                    <td class="p-3 text-center">
-                       <span class="px-2 py-1 bg-gray-900 text-white rounded font-black italic">${o.sales} Pcs</span>
-                       <p class="text-[9px] mt-1 text-gray-400 font-bold">@ ৳${o.price}</p>
-                    </td>
-                    <td class="p-3 text-center">
-                       <p class="text-[9px] font-bold text-green-600">${o.from}</p>
-                       <p class="text-[9px] font-bold text-red-400">${o.to}</p>
-                    </td>
-                    <td class="p-3 text-center font-black text-gray-400 italic">${o.totalDays}D</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
-          
-          <div class="mt-4 p-3 bg-gray-900 rounded-xl">
-             <p class="text-[9px] font-black text-gray-500 uppercase tracking-[2px] mb-1">Recent Activity Logs:</p>
-             <p class="text-[10px] text-gray-200 font-bold italic underline decoration-red-500">→ ${logs[0]}</p>
-          </div>
-        </div>
-      `,
-      confirmButtonColor: '#B91C1C',
-      confirmButtonText: 'CLOSE ANALYTICS',
-      showCloseButton: true,
-    });
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/addoffers`, formData);
+      console.log('Response:', res.data);
+      toast.success("Offer Created!", {
+        style: { borderRadius: '16px', background: '#1e293b', color: '#fff', fontWeight: 'bold' }
+      });
+      setIsAddModalOpen(false);
+      setAddImageFile(null);
+      setAddImagePreview(null);
+      setAddForm({ offerTitle: '', area: '', itemName: '', offerPrice: '', totalQuantity: '', endDate: '' });
+      fetchData();
+    } catch (err) {
+      console.error('Error:', err.response?.data);
+      toast.error("Failed to add offer");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // --- DELETE LOGIC ---
-  const handleDelete = (id) => {
-    Swal.fire({
+  // ✅ EDIT OPEN
+  const handleEditOpen = (offer) => {
+    setEditOffer(offer);
+    setEditImagePreview(offer.offerImage ? `${API_BASE_URL}/uploads/offers/${offer.offerImage}` : null);
+    setEditImageFile(null);
+    setEditForm({
+      offerTitle: offer.offerTitle || '',
+      area: offer.selectedAreas || offer.area || '',
+      itemName: offer.itemName || '',
+      offerPrice: offer.offerPrice || '',
+      totalQuantity: offer.totalQuantity || '',
+      endDate: offer.endDate?.split('T')[0] || ''
+    });
+    setIsEditModalOpen(true);
+  };
+
+  // ✅ EDIT SUBMIT
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const formData = new FormData();
+    if (editImageFile) formData.append('offerImage', editImageFile);
+    formData.append('offerTitle', editForm.offerTitle);
+    formData.append('area', editForm.area);
+    formData.append('itemName', editForm.itemName);
+    formData.append('offerPrice', editForm.offerPrice);
+    formData.append('totalQuantity', editForm.totalQuantity);
+    formData.append('endDate', editForm.endDate);
+
+    try {
+      await axios.put(`${API_BASE_URL}/api/addoffers/${editOffer.id}`, formData);
+      toast.success("Updated Successfully!", {
+        style: { borderRadius: '16px', background: '#1e293b', color: '#fff', fontWeight: 'bold' },
+        iconTheme: { primary: '#3b82f6', secondary: '#fff' }
+      });
+      setIsEditModalOpen(false);
+      setEditOffer(null);
+      setEditImageFile(null);
+      setEditImagePreview(null);
+      fetchData();
+    } catch (err) {
+      toast.error("Update Failed!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ DELETE
+  const handleDelete = async (id) => {
+    const result = await Swal.fire({
       title: 'Are you sure?',
-      text: "Deleting the offer will move it to the archive or history!",
+      text: "This offer will be permanently deleted!",
       icon: 'warning',
       showCancelButton: true,
-      confirmButtonColor: '#EF4444',
-      confirmButtonText: 'Yes, Remove'
-    }).then((result) => {
-      if (result.isConfirmed) {
-        setOffers(offers.filter(o => o.id !== id));
-        setLogs([`Removed ${id} from Live List at ${new Date().toLocaleTimeString()}`, ...logs]);
-        toast.success("Offer Moved to Archive");
-      }
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#64748b',
+      confirmButtonText: 'Yes, Delete it!',
     });
+    if (!result.isConfirmed) return;
+    try {
+      await axios.delete(`${API_BASE_URL}/api/addoffers/${id}`);
+      Swal.fire({ title: 'Deleted!', icon: 'success', timer: 1500, showConfirmButton: false });
+      fetchData();
+    } catch {
+      Swal.fire({ title: 'Failed!', icon: 'error' });
+    }
   };
 
+  const inputClass = "w-full p-4 bg-slate-50 rounded-2xl text-sm font-bold outline-none focus:ring-2 focus:ring-red-100 text-black";
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-10 font-sans tracking-tight">
-      <Toaster />
-      
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div className="group cursor-default">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="p-3 bg-red-600 rounded-2xl shadow-xl shadow-red-200 text-white group-hover:rotate-12 transition-transform">
-                <BarChart3 size={24} strokeWidth={3} />
-              </div>
-              <h1 className="text-3xl font-black text-gray-900 italic uppercase"><span className="text-red-600">Offer</span>List</h1>
-            </div>
-            <p className="text-gray-400 text-[10px] font-black uppercase tracking-[3px] ml-1">Live Inventory & Sales Analytics</p>
-          </div>
+    <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-10 font-sans">
+      <Toaster position="top-right" />
 
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 group-focus-within:text-red-500 transition-colors" size={18} />
-            <input type="text" placeholder="Search Inventory..." className="pl-12 pr-6 py-4 bg-white border border-transparent rounded-2xl text-sm w-full md:w-80 shadow-xl shadow-gray-200/40 outline-none focus:ring-2 focus:ring-red-500/10 focus:border-red-500 transition-all font-semibold" />
-          </div>
-        </div>
-
-        {/* Content Area */}
-        <div className="bg-white rounded-[40px] shadow-2xl shadow-gray-200/50 overflow-hidden border border-white">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead className="bg-gray-900 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                <tr>
-                  <th className="px-8 py-6">Restaurant & Item</th>
-                  <th className="px-8 py-6 text-center border-x border-gray-800">Commercials</th>
-                  <th className="px-8 py-6">Validity Period</th>
-                  <th className="px-8 py-6 text-right tracking-tighter">Admin Controls</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {offers.map((item) => (
-                  <tr key={item.id} className="hover:bg-red-50/20 transition-all group">
-                    <td className="px-8 py-6">
-                      <div className="flex items-center gap-5">
-                        <div className="relative h-16 w-16 shrink-0">
-                          <img src={item.image} className="h-full w-full rounded-2xl object-cover shadow-lg group-hover:rotate-2" alt="" />
-                          <div className="absolute -bottom-2 -right-2 bg-white text-red-600 p-1 rounded-md shadow border"><Utensils size={10}/></div>
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-black text-gray-900 uppercase italic leading-tight">{item.restaurantName}</h4>
-                          <div className="flex items-center gap-1.5 mt-1 bg-gray-100 w-fit px-2 py-0.5 rounded shadow-inner">
-                            <Layers size={10} className="text-gray-400" />
-                            <span className="text-[9px] font-black text-gray-500 uppercase">{item.itemName}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 border-x border-gray-50">
-                      <div className="flex flex-col items-center">
-                         <div className="px-4 py-1.5 bg-green-50 text-green-600 rounded-xl font-black text-xs mb-1 italic shadow-sm">
-                           ৳ {item.price}
-                         </div>
-                         <div className="flex items-center gap-1 text-[9px] font-bold text-gray-400 italic">
-                            <Phone size={10} className="text-blue-400"/> {item.mobile}
-                         </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                          <span className="text-[10px] font-black text-gray-800 italic uppercase">Starts: {item.from}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                          <span className="text-[10px] font-black text-red-600 italic uppercase">Deadline: {item.to}</span>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-right">
-                      <div className="flex items-center justify-end gap-3 opacity-80 group-hover:opacity-100 transition-opacity">
-                        <button onClick={() => { setEditingOffer({...item}); setIsEditModalOpen(true); }} className="w-10 h-10 flex items-center justify-center bg-gray-100 text-gray-900 rounded-xl hover:bg-gray-900 hover:text-white transition-all shadow-sm active:scale-90">
-                          <Edit3 size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(item.id)} className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition-all shadow-md active:scale-90">
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Footer Navigation */}
-          <div className="bg-gray-50/80 p-8 flex flex-col md:flex-row justify-between items-center border-t border-gray-100 gap-4">
-             <div className="flex items-center gap-3">
-                <button onClick={checkAdvancedHistory} className="group relative p-4 bg-white border border-gray-200 rounded-2xl text-gray-400 hover:text-red-600 hover:border-red-100 transition-all shadow-xl active:scale-95">
-                  <Clock size={22} className="group-hover:rotate-12 transition-transform" />
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 text-[8px] text-white items-center justify-center font-black italic">!</span>
-                  </span>
-                </button>
-                <div>
-                   <p className="text-[10px] font-black text-gray-900 uppercase italic tracking-widest">View <span className="text-red-600">Past Sale</span> Analytics</p>
-                </div>
-             </div>
-             
-             <div className="flex items-center gap-3">
-                <div className="flex gap-1 pr-4">
-                   <button className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-[11px] font-black uppercase shadow-lg">1</button>
-                   <button className="px-5 py-2.5 bg-white border border-gray-100 text-gray-300 rounded-xl text-[11px] font-black uppercase cursor-not-allowed">2</button>
-                </div>
-                <button onClick={() => toast("No more pages", {icon: '⚠️'})} className="p-4 bg-red-600 text-white rounded-2xl shadow-xl shadow-red-100 hover:bg-red-700 transition-all">
-                  <ArrowRight size={20} />
-                </button>
-             </div>
-          </div>
-        </div>
+      {/* Header */}
+      <div className="max-w-7xl mx-auto flex justify-between items-center mb-10">
+        <h1 className="text-3xl font-black italic uppercase tracking-tighter text-slate-800">
+          OFFER<span className="text-red-600">LIST</span>
+        </h1>
+        <button onClick={() => setIsAddModalOpen(true)} className="bg-slate-900 text-white px-8 py-3.5 rounded-2xl font-black text-xs uppercase flex items-center gap-2 shadow-xl hover:bg-black transition-all">
+          <Plus size={18} /> Add New Offer
+        </button>
       </div>
 
-      {/* --- BOMB EDIT MODAL --- */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/60 backdrop-blur-md p-4 animate-in fade-in zoom-in duration-300">
-          <div className="bg-white w-full max-w-xl rounded-[40px] shadow-2xl overflow-hidden border border-white">
-            <div className="bg-gray-900 p-8 flex justify-between items-center text-white relative">
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 h-1 w-20 bg-red-600 rounded-b-full"></div>
+      {/* Table */}
+      <div className="max-w-7xl mx-auto bg-white rounded-[40px] shadow-2xl overflow-hidden border border-slate-100">
+        <table className="w-full text-left">
+          <thead className="bg-slate-900 text-white">
+            <tr>
+              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest">Campaign Info</th>
+              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-center">Price & Qty</th>
+              <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {offers.length === 0 ? (
+              <tr><td colSpan="3" className="text-center py-16 text-gray-400 font-bold">No offers found</td></tr>
+            ) : offers.map((item) => (
+              <tr key={item.id} className="hover:bg-slate-50 transition-all">
+                <td className="px-8 py-6 flex items-center gap-4">
+                  <img
+                    src={item.offerImage ? `${API_BASE_URL}/uploads/offers/${item.offerImage}` : "https://placehold.co/56x56/f1f5f9/94a3b8?text=No+Img"}
+                    className="w-14 h-14 rounded-2xl object-cover shadow-md bg-slate-100"
+                    alt=""
+                    onError={(e) => e.target.src = "https://placehold.co/56x56/f1f5f9/94a3b8?text=No+Img"}
+                  />
+                  <div>
+                    <p className="font-black text-slate-800 text-sm uppercase">{item.offerTitle}</p>
+                    <div className="flex items-center gap-1 text-[10px] text-red-500 font-bold uppercase mt-0.5 italic">
+                      <MapPin size={10} /> {item.selectedAreas || item.area || "No Area"}
+                    </div>
+                  </div>
+                </td>
+                <td className="px-8 py-6 text-center">
+                  <div className="inline-flex items-center gap-1 bg-green-50 text-green-600 px-3 py-1 rounded-full text-xs font-black italic">
+                    ৳ {item.offerPrice}
+                  </div>
+          
+<p className="text-[10px] text-slate-400 font-bold mt-1 uppercase flex justify-center items-center gap-1">
+    <Package size={10}/> QTY: {item.quantityType || item.totalQuantity}
+</p>
+                </td>
+                <td className="px-8 py-6 text-right">
+                  <div className="flex items-center justify-end gap-2">
+                    <button onClick={() => handleEditOpen(item)} className="p-3 bg-blue-50 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all">
+                      <Edit2 size={16}/>
+                    </button>
+                    <button onClick={() => handleDelete(item.id)} className="p-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-600 hover:text-white transition-all">
+                      <Trash2 size={16}/>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* ===== ADD MODAL ===== */}
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="bg-slate-900 p-6 flex justify-between items-center text-white shrink-0">
               <div>
-                <h3 className="font-black text-xl italic uppercase tracking-tighter">Adjust Campaign</h3>
-                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-[3px] mt-1">Status: Modifying Records</p>
+                <h2 className="text-xl font-black italic uppercase">Create New Offer</h2>
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Fill in the details below</p>
               </div>
-              <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all hover:rotate-90"><X size={24}/></button>
+              <button onClick={() => setIsAddModalOpen(false)} className="p-2 bg-white/10 hover:bg-red-500 rounded-xl transition-all">
+                <X size={18}/>
+              </button>
             </div>
 
-            <form className="p-10 space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                {/* LOCKED */}
-                <div className="space-y-2 group">
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 ml-1 group-focus-within:text-gray-900 transition-colors">
-                    <Lock size={10}/> Restaurant <span className="text-[8px] italic font-bold">(Locked)</span>
-                  </label>
-                  <div className="relative">
-                    <Utensils className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
-                    <input type="text" readOnly value={editingOffer?.restaurantName} className="w-full bg-gray-100 border-none pl-10 pr-5 py-4 rounded-2xl text-[11px] font-black text-gray-400 cursor-not-allowed uppercase" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1 ml-1"><Lock size={10}/> Initial Start Date</label>
-                  <div className="relative">
-                    <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" size={14} />
-                    <input type="text" readOnly value={editingOffer?.from} className="w-full bg-gray-100 border-none pl-10 pr-5 py-4 rounded-2xl text-[11px] font-black text-gray-400 cursor-not-allowed uppercase" />
-                  </div>
-                </div>
-
-                {/* EDITABLE */}
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-red-600 uppercase tracking-widest italic underline underline-offset-4 decoration-2 ml-1 animate-pulse">Update Price</label>
-                  <div className="relative">
-                    <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-red-600" size={14} />
-                    <input 
-                      type="number" 
-                      value={editingOffer?.price} 
-                      onChange={(e) => setEditingOffer({...editingOffer, price: e.target.value})}
-                      className="w-full bg-red-50/30 border-2 border-red-100 pl-10 pr-5 py-4 rounded-2xl text-[12px] font-black text-gray-900 focus:bg-white focus:border-red-600 transition-all outline-none shadow-sm" 
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-[9px] font-black text-gray-900 uppercase tracking-widest italic underline underline-offset-4 decoration-2 ml-1">New End Date</label>
-                  <div className="relative">
-                    <Timer className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-900" size={14} />
-                    <input 
-                      type="date" 
-                      value={editingOffer?.to} 
-                      onChange={(e) => setEditingOffer({...editingOffer, to: e.target.value})}
-                      className="w-full bg-gray-50 border border-gray-100 pl-10 pr-5 py-4 rounded-2xl text-[11px] font-black text-gray-900 focus:bg-white focus:border-gray-900 transition-all outline-none" 
-                    />
-                  </div>
+            <form onSubmit={handleAddOffer} className="p-8 grid grid-cols-2 gap-5 overflow-y-auto">
+              {/* Image */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Offer Banner *</label>
+                <div className="relative w-full h-36 border-4 border-dashed border-slate-100 rounded-[30px] flex flex-col items-center justify-center bg-slate-50 hover:border-red-200 transition-all overflow-hidden">
+                  {addImagePreview ? (
+                    <img src={addImagePreview} className="w-full h-full object-cover" alt="preview" />
+                  ) : (
+                    <>
+                      <Upload size={24} className="text-slate-300 mb-1" />
+                      <p className="text-[10px] font-black text-slate-400 uppercase">Click to Upload Banner</p>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setAddImageFile(file);
+                        setAddImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
                 </div>
               </div>
 
-              <div className="pt-6 flex gap-4">
-                <button type="button" onClick={() => {
-                  setOffers(offers.map(o => o.id === editingOffer.id ? editingOffer : o));
-                  setLogs([`Updated "${editingOffer.restaurantName}" at ${new Date().toLocaleTimeString()}`, ...logs]);
-                  setIsEditModalOpen(false);
-                  toast.success("Changes Deployed!");
-                }} className="flex-1 bg-red-600 text-white py-5 rounded-3xl font-black uppercase text-xs tracking-[2px] shadow-xl shadow-red-100 hover:bg-red-700 active:scale-95 transition-all flex items-center justify-center gap-3">
-                  <Save size={18}/> Update Record
+              {/* Title */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Offer Title</label>
+                <input className={inputClass} placeholder="Ramadan Platter" required
+                  value={addForm.offerTitle} onChange={e => setAddForm({...addForm, offerTitle: e.target.value})} />
+              </div>
+
+              {/* Area */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Target Area</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <select className={`${inputClass} pl-12 appearance-none`} required
+                    value={addForm.area} onChange={e => setAddForm({...addForm, area: e.target.value})}>
+                    <option value="">Choose Area</option>
+                    {areas.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Item Name */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Item Name</label>
+                <input className={inputClass} placeholder="Chicken Roast" required
+                  value={addForm.itemName} onChange={e => setAddForm({...addForm, itemName: e.target.value})} />
+              </div>
+
+              {/* Price */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Price (BDT)</label>
+                <input type="number" className={inputClass} placeholder="0.00" required
+                  value={addForm.offerPrice} onChange={e => setAddForm({...addForm, offerPrice: e.target.value})} />
+              </div>
+
+              {/* Quantity - 1:1 format */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Quantity (e.g. 1:1)</label>
+                <input className={inputClass} placeholder="1:1" required
+                  value={addForm.totalQuantity} onChange={e => setAddForm({...addForm, totalQuantity: e.target.value})} />
+              </div>
+
+              {/* End Date */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Expiry Date</label>
+                <input type="date" className={inputClass} required
+                  value={addForm.endDate} onChange={e => setAddForm({...addForm, endDate: e.target.value})} />
+              </div>
+
+              <div className="col-span-2 pt-4">
+                <button type="submit" disabled={loading} className="w-full bg-red-600 text-white py-5 rounded-[24px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-red-700 shadow-xl transition-all disabled:opacity-50">
+                  {loading ? <Loader2 className="animate-spin" size={20}/> : "Publish Offer"}
                 </button>
-                <button type="button" onClick={() => setIsEditModalOpen(false)} className="px-10 bg-gray-100 text-gray-500 py-5 rounded-3xl font-black uppercase text-[10px] tracking-widest hover:bg-gray-200 transition-all">
-                  Discard
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT MODAL ===== */}
+      {isEditModalOpen && editOffer && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white w-full max-w-2xl rounded-[40px] shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            <div className="bg-blue-600 p-6 flex justify-between items-center text-white shrink-0">
+              <div>
+                <h2 className="text-xl font-black italic uppercase">Edit Offer</h2>
+                <p className="text-[9px] font-bold text-blue-200 uppercase tracking-widest">Update the details below</p>
+              </div>
+              <button onClick={() => setIsEditModalOpen(false)} className="p-2 bg-white/10 hover:bg-red-500 rounded-xl transition-all">
+                <X size={18}/>
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit} className="p-8 grid grid-cols-2 gap-5 overflow-y-auto">
+              {/* Image */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Offer Banner</label>
+                <div className="relative w-full h-36 border-4 border-dashed border-slate-100 rounded-[30px] flex flex-col items-center justify-center bg-slate-50 hover:border-blue-200 transition-all overflow-hidden">
+                  {editImagePreview ? (
+                    <img src={editImagePreview} className="w-full h-full object-cover" alt="preview"
+                      onError={(e) => e.target.style.display='none'} />
+                  ) : (
+                    <>
+                      <Upload size={24} className="text-slate-300 mb-1" />
+                      <p className="text-[10px] font-black text-slate-400 uppercase">Click to Change Banner</p>
+                    </>
+                  )}
+                  <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        setEditImageFile(file);
+                        setEditImagePreview(URL.createObjectURL(file));
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Title */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Offer Title</label>
+                <input className={inputClass} required
+                  value={editForm.offerTitle} onChange={e => setEditForm({...editForm, offerTitle: e.target.value})} />
+              </div>
+
+              {/* Area */}
+              <div className="col-span-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Target Area</label>
+                <div className="relative">
+                  <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <select className={`${inputClass} pl-12 appearance-none`} required
+                    value={editForm.area} onChange={e => setEditForm({...editForm, area: e.target.value})}>
+                    <option value="">Choose Area</option>
+                    {areas.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Item Name */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Item Name</label>
+                <input className={inputClass} required
+                  value={editForm.itemName} onChange={e => setEditForm({...editForm, itemName: e.target.value})} />
+              </div>
+
+              {/* Price */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Price (BDT)</label>
+                <input type="number" className={inputClass} required
+                  value={editForm.offerPrice} onChange={e => setEditForm({...editForm, offerPrice: e.target.value})} />
+              </div>
+
+              {/* Quantity */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Quantity (e.g. 1:1)</label>
+                <input className={inputClass} placeholder="1:1" required
+                  value={editForm.totalQuantity} onChange={e => setEditForm({...editForm, totalQuantity: e.target.value})} />
+              </div>
+
+              {/* End Date */}
+              <div className="col-span-2 md:col-span-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Expiry Date</label>
+                <input type="date" className={inputClass} required
+                  value={editForm.endDate} onChange={e => setEditForm({...editForm, endDate: e.target.value})} />
+              </div>
+
+              <div className="col-span-2 pt-4">
+                <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-5 rounded-[24px] font-black uppercase text-xs tracking-widest flex items-center justify-center gap-3 hover:bg-blue-700 shadow-xl transition-all disabled:opacity-50">
+                  {loading ? <Loader2 className="animate-spin" size={20}/> : "Update Offer"}
                 </button>
               </div>
             </form>

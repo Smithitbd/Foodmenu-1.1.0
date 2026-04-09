@@ -1,45 +1,66 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, User, Send, Edit, Trash2, Star, Quote, Check, X } from 'lucide-react';
 import Swal from 'sweetalert2'; 
+import axios from 'axios';
+import toast, { Toaster } from 'react-hot-toast';
+
+// আপনার ব্যাকএন্ড ইউআরএল
+const API_URL = window.location.hostname === 'localhost' ? 'http://localhost:5000/api/reviews' : '/api/reviews';
 
 const ReviewPage = () => {
-  const [reviews, setReviews] = useState([
-    { id: 1, name: "Tayef", message: "Effortless to use, offers detailed restaurant menus in Sylhet" },
-    { id: 2, name: "Yesmin", message: "Absolutely amazing. Easy navigation, great visuals." },
-    { id: 3, name: "Zaber Ahmed", message: "Easy to use, full of info, and super dependable. Absolutely love it." },
-    { id: 4, name: "Fahim Ahmed", message: "This tool is designed with accurate info which makes it easier to choose food from Sylhet." },
-  ]);
-
+  const [reviews, setReviews] = useState([]);
   const [formData, setFormData] = useState({ name: '', message: '' });
   const [editingId, setEditingId] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  // --- ১. ডাটাবেস থেকে রিভিউ লোড করা ---
+  const fetchReviews = async () => {
+    try {
+      const res = await axios.get(API_URL);
+      setReviews(res.data);
+    } catch (err) {
+      console.error("Error fetching reviews:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchReviews();
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleSave = (e) => {
+  // --- ২. সেভ এবং আপডেট ফাংশন ---
+  const handleSave = async (e) => {
     e.preventDefault();
-    if (formData.name && formData.message) {
+    if (!formData.name || !formData.message) return;
+
+    setLoading(true);
+    try {
       if (editingId) {
-        // Edit mode update 
-        setReviews(reviews.map(rev => rev.id === editingId ? { ...formData, id: editingId } : rev));
+        // এডিট মোড (UPDATE)
+        await axios.put(`${API_URL}/${editingId}`, formData);
         setEditingId(null);
         Swal.fire({ icon: 'success', title: 'Updated!', text: 'Review has been updated.', timer: 1500, showConfirmButton: false, customClass: { popup: 'rounded-[2rem]' } });
       } else {
-        // New review add
-        const newReview = { id: Date.now(), ...formData };
-        setReviews([newReview, ...reviews]);
+        // নতুন রিভিউ (CREATE)
+        await axios.post(API_URL, formData);
         Swal.fire({ icon: 'success', title: 'Published!', text: 'Your review is live.', timer: 1500, showConfirmButton: false, customClass: { popup: 'rounded-[2rem]' } });
       }
       setFormData({ name: '', message: '' });
+      fetchReviews(); // ডাটা রিফ্রেশ করা
+    } catch (err) {
+      toast.error("Operation failed. Try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
   const startEdit = (review) => {
     setEditingId(review.id);
     setFormData({ name: review.name, message: review.message });
-    // Scroll effect for moving user into form
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -48,6 +69,7 @@ const ReviewPage = () => {
     setFormData({ name: '', message: '' });
   };
 
+  // --- ৩. ডিলিট ফাংশন ---
   const deleteReview = (id) => {
     Swal.fire({
       title: "Delete Review?",
@@ -58,18 +80,24 @@ const ReviewPage = () => {
       cancelButtonColor: "#ef4444",
       confirmButtonText: "Yes, delete it!",
       customClass: { popup: 'rounded-[2rem]', confirmButton: 'rounded-xl px-6 py-3', cancelButton: 'rounded-xl px-6 py-3' }
-    }).then((result) => {
+    }).then(async (result) => {
       if (result.isConfirmed) {
-        setReviews(reviews.filter(rev => rev.id !== id));
-        Swal.fire({ title: "Deleted!", icon: "success", timer: 1000, showConfirmButton: false, customClass: { popup: 'rounded-[2rem]' } });
+        try {
+          await axios.delete(`${API_URL}/${id}`);
+          fetchReviews();
+          Swal.fire({ title: "Deleted!", icon: "success", timer: 1000, showConfirmButton: false, customClass: { popup: 'rounded-[2rem]' } });
+        } catch (err) {
+          toast.error("Delete failed.");
+        }
       }
     });
   };
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] pt-2 pb-10 px-4 sm:px-6 lg:px-10 font-sans">
+      <Toaster />
       
-      {/* Header Section - Gap Fixed */}
+      {/* Header Section */}
       <div className="mb-4 flex justify-between items-start">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Add Review</h1>
@@ -108,8 +136,8 @@ const ReviewPage = () => {
               </div>
 
               <div className="flex gap-2">
-                <button type="submit" className={`flex-1 ${editingId ? 'bg-blue-600' : 'bg-slate-900'} hover:bg-red-600 text-white font-black py-3.5 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 mt-2 uppercase tracking-widest text-[10px]`}>
-                  {editingId ? <Check size={14} /> : <Send size={14} />} {editingId ? 'Update Review' : 'Publish Review'}
+                <button type="submit" disabled={loading} className={`flex-1 ${editingId ? 'bg-blue-600' : 'bg-slate-900'} hover:bg-red-600 text-white font-black py-3.5 rounded-2xl transition-all shadow-lg flex items-center justify-center gap-2 mt-2 uppercase tracking-widest text-[10px]`}>
+                  {loading ? 'Processing...' : (editingId ? <><Check size={14} /> Update Review</> : <><Send size={14} /> Publish Review</>)}
                 </button>
                 {editingId && (
                   <button type="button" onClick={cancelEdit} className="mt-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-2xl transition-all flex items-center justify-center">
@@ -170,6 +198,11 @@ const ReviewPage = () => {
                       </td>
                     </tr>
                   ))}
+                  {reviews.length === 0 && (
+                    <tr>
+                      <td colSpan="4" className="text-center py-10 text-slate-400 text-sm italic">No reviews found yet.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

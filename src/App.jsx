@@ -43,6 +43,7 @@ const Sales_Table_Report = lazy(() => import("./Pages/Admin/Sales_Table_Report.j
 const ChatList = lazy(() => import("./Pages/Admin/ChatList.jsx"));
 const Review = lazy(() => import("./Pages/Admin/Review.jsx"));
 const Registration = lazy(() => import("./Pages/Admin/Registration.jsx"));
+const AddRestaurant = lazy(() => import("./Pages/Admin/AddRestaurant.jsx"));
 
 // Restaurant Admin Pages
 const ResDashboard = lazy(() => import("./Pages/RestaurantAdmin/Dashboard.jsx"));
@@ -79,6 +80,15 @@ const ProtectedRoute = ({ children }) => {
   const resId = localStorage.getItem('resId');
   if (!resId) {
     return <Navigate to="/restaurant-login" replace />;
+  }
+  return children;
+};
+
+// Super Admin Protected Route
+const AdminProtectedRoute = ({ children }) => {
+  const isAdminLoggedIn = localStorage.getItem('superadmin_data');
+  if (!isAdminLoggedIn) {
+    return <Navigate to="/superadminlogin" replace />;
   }
   return children;
 };
@@ -144,8 +154,9 @@ const AppContent = () => {
                 <Route path = "/contact" element ={<PageWrapper><ContactUs /></PageWrapper>} />
               </Route>
 
+
               {/* --- 3. Super Admin Routes (Protected) --- */}
-              <Route path="/admin" element={<ProtectedRoute><AdminLayout /></ProtectedRoute>}>
+              <Route path="/admin" element={<AdminProtectedRoute><AdminLayout /></AdminProtectedRoute>}>
                 <Route index element={<PageWrapper><Dashboard /></PageWrapper>} />
                 <Route path="area" element={<PageWrapper><AddArea /></PageWrapper>} />
                 <Route path="area/:areaName" element={<PageWrapper><AdminAreaPage /></PageWrapper>} />
