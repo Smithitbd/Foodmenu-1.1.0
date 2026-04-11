@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Search, Trash2, ChevronLeft, ChevronRight, Mail, Calendar } from 'lucide-react';
+import { Search, Trash2, ChevronLeft, ChevronRight, Mail, Calendar, Eye, User, MessageSquare, Info } from 'lucide-react';
 import Swal from 'sweetalert2';
-import axios from 'axios'; // npm install axios
+import axios from 'axios';
 
 const ChatListPage = () => {
   const [chats, setChats] = useState([]);
@@ -41,6 +41,55 @@ const ChatListPage = () => {
   const indexOfFirstChat = indexOfLastChat - entriesToShow;
   const currentChats = filteredChats.slice(indexOfFirstChat, indexOfLastChat);
 
+  // Message View Handler (সরাসরি পপআপে মেসেজ দেখার জন্য)
+  const viewMessage = (chat) => {
+    Swal.fire({
+      title: `<span class="text-xl font-black text-slate-800">Message Details</span>`,
+      html: `
+        <div class="text-left p-2 font-sans">
+          <div class="mb-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+              <i class="lucide-user"></i> Sender Name
+            </p>
+            <p class="text-sm font-black text-slate-700">${chat.name}</p>
+          </div>
+          
+          <div class="mb-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+              <i class="lucide-mail"></i> Email Address
+            </p>
+            <p class="text-sm font-semibold text-blue-600">${chat.email}</p>
+          </div>
+
+          <div class="mb-4 p-3 bg-slate-50 rounded-2xl border border-slate-100">
+            <p class="text-[10px] uppercase font-bold text-slate-400 mb-1 flex items-center gap-1">
+              <i class="lucide-info"></i> Subject
+            </p>
+            <p class="text-sm font-bold text-slate-700">${chat.subject || 'No Subject'}</p>
+          </div>
+
+          <div class="mb-4 p-4 bg-red-50/30 rounded-2xl border border-red-100">
+            <p class="text-[10px] uppercase font-bold text-red-400 mb-2">Message Content</p>
+            <p class="text-sm text-slate-600 leading-relaxed font-medium whitespace-pre-wrap">${chat.message}</p>
+          </div>
+
+          <div class="text-right">
+             <span class="text-[10px] font-bold text-slate-400 italic">
+               Received at: ${new Date(chat.created_at).toLocaleString()}
+             </span>
+          </div>
+        </div>
+      `,
+      showConfirmButton: true,
+      confirmButtonText: 'Close',
+      confirmButtonColor: '#1e293b',
+      customClass: {
+        popup: 'rounded-[2.5rem] px-4',
+        confirmButton: 'rounded-xl px-8 py-2 text-sm font-bold'
+      }
+    });
+  };
+
   // Delete Handler
   const deleteChat = (id) => {
     Swal.fire({
@@ -57,7 +106,7 @@ const ChatListPage = () => {
         try {
           await axios.delete(`http://localhost:5000/api/admin/messages/${id}`);
           setChats(chats.filter(chat => chat.id !== id));
-          Swal.fire({ title: "Deleted!", icon: "success", timer: 1000, showConfirmButton: false });
+          Swal.fire({ title: "Deleted!", icon: "success", timer: 1000, showConfirmButton: false, customClass: { popup: 'rounded-[2rem]' } });
         } catch (error) {
           Swal.fire("Error!", "Could not delete the message.", "error");
         }
@@ -65,7 +114,7 @@ const ChatListPage = () => {
     });
   };
 
-  if (loading) return <div className="text-center mt-20 font-bold">Loading Messages...</div>;
+  if (loading) return <div className="text-center mt-20 font-bold text-slate-400 animate-pulse uppercase tracking-widest text-xs">Loading Messages...</div>;
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] pt-2 pb-10 px-4 sm:px-6 lg:px-10 font-sans">
@@ -81,7 +130,7 @@ const ChatListPage = () => {
             <select 
               value={entriesToShow} 
               onChange={(e) => {setEntriesToShow(Number(e.target.value)); setCurrentPage(1);}}
-              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-red-500 transition-all"
+              className="bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-none focus:border-red-500 transition-all cursor-pointer"
             >
               {[5, 10, 15, 20, 25].map(num => <option key={num} value={num}>{num}</option>)}
             </select>
@@ -107,9 +156,9 @@ const ChatListPage = () => {
                 <th className="px-6 py-5 text-center">Id</th>
                 <th className="px-6 py-5">Sender</th>
                 <th className="px-6 py-5 hidden md:table-cell">Email</th>
-                <th className="px-6 py-5">Message</th>
+                <th className="px-6 py-5">Message Snippet</th>
                 <th className="px-6 py-5 hidden sm:table-cell">Date</th>
-                <th className="px-6 py-5 text-center">Action</th>
+                <th className="px-6 py-5 text-center">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -130,28 +179,50 @@ const ChatListPage = () => {
                     </div>
                   </td>
                   <td className="px-6 py-5">
-                    <p className="text-xs text-slate-500 font-medium leading-relaxed max-w-[250px] truncate group-hover:whitespace-normal transition-all">
-                      <span className="block font-bold text-slate-700">{chat.subject}</span>
-                      {chat.message}
-                    </p>
+                    <div className="max-w-[250px]">
+                      <span className="block text-[11px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">{chat.subject}</span>
+                      <p className="text-xs text-slate-500 font-medium truncate italic">
+                        "{chat.message}"
+                      </p>
+                    </div>
                   </td>
                   <td className="px-6 py-5 hidden sm:table-cell">
                     <div className="flex items-center gap-2 text-slate-400 text-[11px] font-black italic">
                       <Calendar size={14} /> {new Date(chat.created_at).toLocaleDateString()}
                     </div>
                   </td>
-                  <td className="px-6 py-5 text-center">
-                    <button 
-                      onClick={() => deleteChat(chat.id)}
-                      className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
-                    >
-                      <Trash2 size={18} />
-                    </button>
+                  <td className="px-6 py-5">
+                    <div className="flex items-center justify-center gap-2">
+                      {/* View Button */}
+                      <button 
+                        onClick={() => viewMessage(chat)}
+                        className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all"
+                        title="View Full Message"
+                      >
+                        <Eye size={18} />
+                      </button>
+
+                      {/* Delete Button */}
+                      <button 
+                        onClick={() => deleteChat(chat.id)}
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                        title="Delete Message"
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          
+          {filteredChats.length === 0 && (
+            <div className="p-20 text-center">
+              <MessageSquare className="mx-auto text-slate-200 mb-4" size={48} />
+              <p className="text-slate-400 font-bold">No messages found!</p>
+            </div>
+          )}
         </div>
 
         <div className="p-6 border-t border-slate-50 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50/20">
