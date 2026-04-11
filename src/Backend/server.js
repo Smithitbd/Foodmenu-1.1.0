@@ -159,7 +159,8 @@ app.post('/api/register-restaurant', upload.fields([
     }
 });
 
-app.post('/api/login', async (req, res) => {
+//restaurant admin login
+/*app.post('/api/login', async (req, res) => {
     try {
         const { identifier, password } = req.body;
 
@@ -224,6 +225,93 @@ app.post('/api/login', async (req, res) => {
         }
 
         // ৩. কোথাও না পাওয়া গেলে
+        res.status(401).json({ message: "Invalid credentials or User not found" });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});*/
+app.post('/api/login', async (req, res) => {
+    try {
+        const { identifier, password } = req.body;
+
+        // ১. Restaurants টেবিলে চেক করুন (Owner Login)
+        const ownerSql = "SELECT *, 'owner' as roleType FROM restaurants WHERE owner_email = ? OR owner_name = ? OR restaurant_name = ?";
+        const [ownerResults] = await db.query(ownerSql, [identifier, identifier, identifier]);
+
+        if (ownerResults.length > 0) {
+            const user = ownerResults[0];
+
+            // --- নতুন লজিক: স্ট্যাটাস চেক ---
+            
+            // যদি রেস্টুরেন্ট ব্লকড থাকে
+            if (user.status === 'blocked') {
+                return res.status(403).json({ message: "Your account is blocked by Admin!" });
+            }
+
+            // যদি রেস্টুরেন্ট এখনও 'active' না হয় (অর্থাৎ 'inactive')
+            if (user.status !== 'active') {
+                return res.status(403).json({ 
+                    message: "Your restaurant has not been approved yet. Please wait for admin approval." 
+                });
+            }
+
+            // পাসওয়ার্ড ম্যাচিং
+            const isMatch = await bcrypt.compare(password, user.owner_password);
+            if (isMatch) {
+                return res.status(200).json({
+                    message: "Login Successfully",
+                    user: { 
+                        id: user.id, 
+                        name: user.owner_name, 
+                        restaurant: user.restaurant_name, 
+                        logo: user.logo,
+                        role: 'Owner'
+                    }
+                });
+            } else {
+                return res.status(401).json({ message: "Incorrect password!" });
+            }
+        }
+
+        // ২. স্টাফ লগইন চেক করুন (Staff Login)
+        const staffSql = `SELECT u.*, r.restaurant_name, r.logo, r.status as res_status FROM users u 
+                          JOIN restaurants r ON u.restaurant_id = r.id 
+                          WHERE u.email = ? OR u.name = ?`;
+        const [staffResults] = await db.query(staffSql, [identifier, identifier]);
+
+        if (staffResults.length > 0) {
+            const staff = staffResults[0];
+
+            // স্টাফের ক্ষেত্রেও রেস্টুরেন্ট একটিভ আছে কি না চেক করা জরুরি
+            if (staff.res_status !== 'active') {
+                return res.status(403).json({ message: "Your restaurant service is currently closed!" });
+            }
+
+            if (staff.status === 'blocked') {
+                return res.status(403).json({ message: "This staff account is currently suspended!" });
+            }
+
+            const isMatch = await bcrypt.compare(password, staff.password);
+            if (isMatch) {
+                return res.status(200).json({
+                    message: "Staff Login Successfully",
+                    user: { 
+                        id: staff.restaurant_id, 
+                        staffId: staff.id,
+                        name: staff.name, 
+                        restaurant: staff.restaurant_name, 
+                        logo: staff.logo,
+                        role: staff.role 
+                    }
+                });
+            } else {
+                return res.status(401).json({ message: "Incorrect password!" });
+            }
+        }
+
+        // ৩. ইউজার পাওয়া না গেলে
         res.status(401).json({ message: "Invalid credentials or User not found" });
 
     } catch (err) {
