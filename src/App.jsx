@@ -57,6 +57,7 @@ const ResOrder = lazy(() => import("./Pages/RestaurantAdmin/OrderFood.jsx"));
 const ResReports = lazy(() => import("./Pages/RestaurantAdmin/SalesReport.jsx"));
 const ResOffers = lazy(() => import("./Pages/RestaurantAdmin/Addoffer.jsx"));
 const ResRegistration = lazy(() => import("./Pages/RestaurantAdmin/Registration.jsx"));
+const ViewMenu = lazy(() => import("./Pages/RestaurantAdmin/View-Menu.jsx"));
 
 // Restaurant Admin Dropdown Pages
 const GraphReport = lazy(() => import("./Pages/RestaurantAdmin/GraphReport.jsx"));
@@ -198,6 +199,7 @@ const AppContent = () => {
                 <Route path="menu-list" element={<PageWrapper><MenuList /></PageWrapper>} />
                 <Route path="add-table" element={<PageWrapper><AddTable /></PageWrapper>} />
                 <Route path="table-list" element={<PageWrapper><TableList /></PageWrapper>} />
+                <Route path="view-menu" element={<PageWrapper><ViewMenu /></PageWrapper>} />
               </Route>
 
               {/* --- 5. 404 Route --- */}

@@ -1368,6 +1368,236 @@ app.get('/api/menu-list', async (req, res) => {
     }
 });
 
+//View-Menu API
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/staff/menu/:restaurantId
+// Staff এর restaurant এর menu দেখানো (শুধু available products)
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/waiter/menu/:restaurantId', async (req, res) => {
+  const { restaurantId } = req.params;
+ 
+  try {
+    // Restaurant profile
+    const [restaurantRows] = await db.query(
+      `SELECT id, restaurant_name, logo, bg_image, location, is_online, 
+              contact_mobile, opening_time, closing_time
+       FROM restaurants 
+       WHERE id = ? AND status = 'active'`,
+      [restaurantId]
+    );
+ 
+    if (restaurantRows.length === 0) {
+      return res.status(404).json({ message: 'Restaurant not found' });
+    }
+ 
+    const restaurant = restaurantRows[0];
+ 
+    // Products with images (only available)
+    const [products] = await db.query(
+      `SELECT 
+         p.id,
+         p.name AS display_name,
+         p.price AS display_price,
+         CASE WHEN p.offer_price > 0 THEN p.price ELSE NULL END AS old_price,
+         p.category,
+         p.is_available,
+         p.estimated_time,
+         p.quantity AS quantity_type
+       FROM products p
+       WHERE p.restaurant_id = ? AND p.is_available = 1
+       ORDER BY p.category, p.name`,
+      [restaurantId]
+    );
+ 
+    // Product images
+    const [images] = await db.query(
+      `SELECT pi.product_id, pi.image_path
+       FROM product_images pi
+       INNER JOIN products p ON pi.product_id = p.id
+       WHERE p.restaurant_id = ?`,
+      [restaurantId]
+    );
+ 
+    // Images map তৈরি
+    const imageMap = {};
+    images.forEach(img => {
+      if (!imageMap[img.product_id]) imageMap[img.product_id] = [];
+      imageMap[img.product_id].push(`http://localhost:5000/uploads/${img.image_path}`);
+    });
+ 
+    // Apply offer price (if offer_price set, show as discounted)
+    const enrichedProducts = products.map(p => {
+      // offer_price আসলে display_price হিসেবে দেখানো হবে
+      const [rawProduct] = products.filter(pp => pp.id === p.id);
+      return {
+        ...p,
+        display_price: p.display_price, // original price
+        images: imageMap[p.id] || ['https://via.placeholder.com/300'],
+      };
+    });
+ 
+    // Products কে offer price দিয়ে আবার fetch করি সঠিকভাবে
+    const [productsWithOffer] = await db.query(
+      `SELECT 
+         p.id,
+         p.name AS display_name,
+         CASE WHEN p.offer_price > 0 THEN p.offer_price ELSE p.price END AS display_price,
+         CASE WHEN p.offer_price > 0 THEN p.price ELSE NULL END AS old_price,
+         p.category,
+         p.is_available,
+         p.estimated_time
+       FROM products p
+       WHERE p.restaurant_id = ? AND p.is_available = 1
+       ORDER BY p.category, p.name`,
+      [restaurantId]
+    );
+ 
+    // Menu grouped by category
+    const menuGrouped = {};
+    productsWithOffer.forEach(product => {
+      const cat = product.category || 'Others';
+      if (!menuGrouped[cat]) menuGrouped[cat] = [];
+      menuGrouped[cat].push({
+        ...product,
+        images: imageMap[product.id] || ['https://via.placeholder.com/300'],
+      });
+    });
+ 
+    return res.json({
+      profile: {
+        id: restaurant.id,
+        restaurant_name: restaurant.restaurant_name,
+        logo: restaurant.logo ? `http://localhost:5000/uploads/${restaurant.logo}` : null,
+        bg_image: restaurant.bg_image ? `http://localhost:5000/uploads/${restaurant.bg_image}` : null,
+        location: restaurant.location,
+        is_online: restaurant.is_online,
+        contact_mobile: restaurant.contact_mobile,
+        opening_time: restaurant.opening_time,
+        closing_time: restaurant.closing_time,
+      },
+      menu: menuGrouped,
+    });
+  } catch (err) {
+    console.error('Staff menu fetch error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /api/staff/tables/:restaurantId
+// Restaurant এর tables দেখানো
+// ─────────────────────────────────────────────────────────────────────────────
+app.get('/api/waiter/tables/:restaurantId', async (req, res) => {
+  const { restaurantId } = req.params;
+ 
+  try {
+    const [tables] = await db.query(
+      `SELECT id, table_number, category, capacity, is_available
+       FROM restaurant_tables
+       WHERE restaurant_id = ?
+       ORDER BY table_number`,
+      [restaurantId]
+    );
+ 
+    return res.json(tables);
+  } catch (err) {
+    console.error('Tables fetch error:', err);
+    return res.status(500).json({ message: 'Server error', error: err.message });
+  }
+});
+ 
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /api/staff/dine-in-order
+// Dine-In Order database এ save করা
+// Body: {
+//   restaurant_id, customer_name, customer_phone,
+//   table_id, items: [{product_id, quantity, price, total_price}],
+//   subtotal, total_amount, discount, staff_name
+// }
+// ─────────────────────────────────────────────────────────────────────────────
+app.post('/api/waiter/dine-in-order', async (req, res) => {
+  const {
+    restaurant_id,
+    /*customer_name,
+    customer_phone,*/
+    table_id,
+    items,
+    subtotal,
+    total_amount,
+    discount = 0,
+    staff_name,
+  } = req.body;
+ 
+  // Basic validation
+  if (!restaurant_id  || !table_id || !items || items.length === 0)/*|| !customer_name || !customer_phone*/ {
+    return res.status(400).json({ message: 'Fill all the information' });
+  }
+ 
+  // DB transaction শুরু
+  const connection = await db.getConnection();
+  try {
+    await connection.beginTransaction();
+ 
+    // ১. orders table এ insert
+    const [orderResult] = await connection.query(
+      `INSERT INTO orders 
+        (restaurant_id, customer_name, customer_phone, customer_address, 
+         subtotal, discount, order_type, table_id, total_amount, 
+         paid_amount, due_amount, payment_method, order_status, reference)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        restaurant_id,
+        'Walking Customer', // customer_name (ডিফল্ট)
+        'N/A',               // customer_phone
+        'Dine-In',           // customer_address
+        subtotal || total_amount, 
+        discount,
+        'Dine-In',           // order_type
+        table_id,
+        total_amount,
+        0,                   // paid_amount (শুরুতে ০)
+        total_amount,        // due_amount (পুরোটা বাকি)
+        'CASH',              // payment_method
+        'pending',           // order_status
+        staff_name || 'Staff' // reference
+      ]
+    );
+ 
+    const orderId = orderResult.insertId;
+ 
+    // ২. order_items table এ insert (প্রতিটি item এর জন্য)
+    const itemValues = items.map(item => [
+      orderId,
+      item.product_id,
+      item.quantity,
+      item.price,
+      item.total_price,
+    ]);
+ 
+    await connection.query(
+      `INSERT INTO order_items (order_id, product_id, quantity, price, total_price)
+       VALUES ?`,
+      [itemValues]
+    );
+ 
+    await connection.commit();
+    connection.release();
+ 
+    return res.status(201).json({
+      message: 'Order successfully placed!',
+      order_id: orderId,
+      table: table_id,
+      total: total_amount,
+    });
+  } catch (err) {
+    await connection.rollback();
+    connection.release();
+    console.error('Dine-in order error:', err);
+    return res.status(500).json({ message: 'Order could not be placed', error: err.message });
+  }
+});
+
+
 // --- PUBLIC API: GET FULL RESTAURANT DATA BY SLUG ---
 app.get('/api/public/restaurant/:slug', async (req, res) => {
     try {
@@ -1401,7 +1631,7 @@ app.get('/api/public/restaurant/:slug', async (req, res) => {
             FROM products p 
             LEFT JOIN product_images pi ON p.id = pi.product_id 
             LEFT JOIN offers o ON p.id = o.productId
-            WHERE p.restaurant_id = ? AND p.is_available = 1  -- এখানে পরিবর্তন হয়েছে
+            WHERE p.restaurant_id = ? AND p.is_available = 1  
             GROUP BY p.id 
             ORDER BY p.category ASC, p.id DESC`;
 

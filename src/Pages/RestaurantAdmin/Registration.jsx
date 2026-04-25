@@ -143,6 +143,7 @@ const RegistrationPage = () => {
                     <option disabled value="Select Role">Select Role</option>
                     <option value="Manager">Manager</option>
                     <option value="Chief-Waiter">Chief-Waiter</option>
+                    <option value="Waiter">Waiter</option>
                   </select>
                   <ShieldCheck className="absolute left-4 top-3 text-slate-400 group-focus-within:text-red-500" size={18} />
                   <ChevronDown className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={16} />
