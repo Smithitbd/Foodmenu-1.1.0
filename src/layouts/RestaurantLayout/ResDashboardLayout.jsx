@@ -148,7 +148,7 @@ const DashboardLayout = () => {
           )}
 
           {/* 5. Menu Dropdown */}
-          {hasAccess(['Owner', 'Manager', 'Chief-Waiter', 'Waiter']) && (
+          {hasAccess(['Owner', 'Manager', 'Chief-Waiter', 'Waiter' ]) && (
             <div className="py-1">
               <button onClick={() => isSidebarOpen && setIsMenuOpen(!isMenuOpen)} className={`w-full flex items-center p-3.5 rounded-xl transition-all group ${location.pathname.includes('/restaurantadmin/menu') || location.pathname.includes('/restaurantadmin/download-menu') ? 'bg-gray-800 text-white' : 'hover:bg-gray-800/50 hover:text-white'}`}>{/**/}
                 <Utensils size={20} className={location.pathname.includes('/restaurantadmin/menu') ? 'text-red-500' : 'text-gray-400 group-hover:text-red-500'} />
@@ -169,9 +169,11 @@ const DashboardLayout = () => {
                   <Link to="/restaurantadmin/menu-list" className="flex items-center gap-3 px-6 py-2 text-[11px] font-bold uppercase text-gray-400 hover:text-white transition-colors italic">
                     <List size={14} /> Menu List
                   </Link>
+                  {hasAccess(['Waiter']) && (
                   <Link to="/restaurantadmin/view-menu" className="flex items-center gap-3 px-6 py-2 text-[11px] font-bold uppercase text-gray-400 hover:text-white transition-colors italic">
                     <List size={14} /> View-Menu
                   </Link>
+                  )}
                   {/* --- Download Menu Added --- 
                   <Link to="/restaurantadmin/download-menu" className={`flex items-center gap-3 px-6 py-2 text-[11px] font-bold uppercase hover:text-red-500 transition-colors italic ${location.pathname === '/restaurantadmin/download-menu' ? 'text-red-500' : 'text-gray-400'}`}>
                     <Download size={14} /> Download Menu

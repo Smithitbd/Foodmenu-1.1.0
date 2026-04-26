@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { FaUser, FaLock, FaEye, FaEyeSlash, FaGoogle, FaFacebookF } from 'react-icons/fa';
-import Swal from 'sweetalert2'; 
-import axios from 'axios'; 
+import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import Swal from 'sweetalert2';
+import axios from 'axios';
+
+const STAFF_ROLES = ['Waiter'];//, 'Chief-Waiter', 'Manager'
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  // State changed from email to identifier
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -20,50 +20,56 @@ const LoginPage = () => {
 
     try {
       const response = await axios.post('http://localhost:5000/api/login', {
-          identifier : identifier, // sending identifier
-          password: password 
-        });
+        identifier,
+        password,
+      });
 
-      if(response.status === 200){
+      if (response.status === 200) {
         setIsLoading(false);
         const loggedInUser = response.data.user;
-        
+
         Swal.fire({
-          icon : 'success',
-          title : 'Welcome Back..!',
-          text: `Hello ${loggedInUser.name}, Login Successfully..!`,
+          icon: 'success',
+          title: 'Welcome Back!',
+          text: `Hello ${loggedInUser.name}, Login Successful!`,
           timer: 1500,
-          showConfirmButton : false
+          showConfirmButton: false,
         });
 
-        localStorage.setItem('userRole', loggedInUser.role);
-
-        // store user data in localstorage
+        // LocalStorage এ সব data save
         localStorage.setItem('user', JSON.stringify(loggedInUser));
+        localStorage.setItem('userRole', loggedInUser.role);
         localStorage.setItem('resId', loggedInUser.id);
         localStorage.setItem('resName', loggedInUser.restaurant);
         localStorage.setItem('resLogo', loggedInUser.logo);
-        
-        navigate('/restaurantadmin');
+
+        // ── Role অনুযায়ী Redirect ──────────────────────────────────────────
+        if (STAFF_ROLES.includes(loggedInUser.role)) {
+          navigate('/view-menu');
+        } else {
+          // Owner → Dashboard এ
+          navigate('/restaurantadmin');
+        }
       }
     } catch (error) {
       setIsLoading(false);
       Swal.fire({
-        icon : 'error',
-        title : 'Login Failed..',
+        icon: 'error',
+        title: 'Login Failed',
         text: error.response?.data?.message || 'The credentials you entered are incorrect.',
-        confirmButtonColor: '#ef4444'
+        confirmButtonColor: '#ef4444',
       });
     }
   };
 
   return (
     <div className="h-screen bg-[#F8FAFC] flex items-center justify-center p-3 sm:p-5 overflow-hidden font-['Gilroy']">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         className="w-full max-w-[1000px] h-full max-h-[600px] lg:max-h-[620px] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-100 relative z-10"
       >
+        {/* Left Panel */}
         <div className="w-full md:w-[40%] h-[180px] md:h-full bg-slate-900 p-6 md:p-10 flex flex-col justify-between relative overflow-hidden text-white">
           <div className="relative z-10">
             <div onClick={() => navigate('/')} className="flex items-center gap-2 mb-4 md:mb-12 cursor-pointer brightness-0 invert">
@@ -72,7 +78,7 @@ const LoginPage = () => {
               </span>
             </div>
             <h1 className="text-xl md:text-4xl font-black leading-tight mb-2 md:mb-4">
-              Elevate your <br className="hidden md:block" /> 
+              Elevate your <br className="hidden md:block" />
               <span className="text-red-500">Kitchen</span> Business.
             </h1>
             <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-[240px]">
@@ -80,10 +86,13 @@ const LoginPage = () => {
             </p>
           </div>
           <div className="relative z-10 hidden sm:block">
-            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Secured by <span className="text-[12px] text-red-500">SMITH IT</span></p>
+            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+              Secured by <span className="text-[12px] text-red-500">SMITH IT</span>
+            </p>
           </div>
         </div>
 
+        {/* Right Panel */}
         <div className="flex-1 p-6 md:p-10 lg:p-12 bg-white flex flex-col justify-center overflow-y-auto">
           <div className="max-w-sm mx-auto w-full">
             <div className="mb-6 md:mb-8 flex justify-between items-end">
@@ -97,16 +106,14 @@ const LoginPage = () => {
             <form onSubmit={handleLogin} className="space-y-3 md:space-y-4">
               <div className="space-y-1">
                 <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Email / Name / Restaurant</label>
-                <div className="relative group">
-                  <input 
-                    type="text" // Changed to text to allow Name/Restaurant name
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder="Enter email or name"
-                    className="w-full px-4 py-3 bg-slate-50 border-transparent focus:border-red-100 focus:bg-white rounded-xl outline-none text-xs font-semibold text-slate-700 transition-all"
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="Enter email or name"
+                  className="w-full px-4 py-3 bg-slate-50 border border-transparent focus:border-red-200 focus:bg-white rounded-xl outline-none text-xs font-semibold text-slate-700 transition-all"
+                  required
+                />
               </div>
 
               <div className="space-y-1">
@@ -115,16 +122,16 @@ const LoginPage = () => {
                   <button type="button" className="text-[9px] font-black text-slate-300 hover:text-red-600 transition-colors">Forgot?</button>
                 </div>
                 <div className="relative">
-                  <input 
-                    type={showPassword ? "text" : "password"} 
+                  <input
+                    type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 bg-slate-50 border-transparent focus:border-red-100 focus:bg-white rounded-xl outline-none text-xs font-semibold text-slate-700 transition-all"
+                    className="w-full px-4 py-3 bg-slate-50 border border-transparent focus:border-red-200 focus:bg-white rounded-xl outline-none text-xs font-semibold text-slate-700 transition-all"
                     required
                   />
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-600 transition-colors"
                   >
@@ -133,10 +140,11 @@ const LoginPage = () => {
                 </div>
               </div>
 
-              <motion.button 
+              <motion.button
                 whileTap={{ scale: 0.98 }}
+                type="submit"
                 className={`w-full py-3.5 rounded-xl font-black text-white text-xs shadow-lg transition-all flex items-center justify-center gap-2 mt-2 ${
-                  isLoading ? 'bg-slate-400' : 'bg-slate-900 hover:bg-red-600 shadow-slate-50'
+                  isLoading ? 'bg-slate-400' : 'bg-slate-900 hover:bg-red-600'
                 }`}
                 disabled={isLoading}
               >

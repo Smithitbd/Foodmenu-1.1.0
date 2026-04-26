@@ -139,6 +139,7 @@ const AppContent = () => {
               <Route path="/login" element={<PageWrapper><LoginPage /></PageWrapper>} />
               <Route path="/restaurant-login" element={<PageWrapper><RestaurantLoginPage /></PageWrapper>} />
               <Route path="/superadminlogin" element={<PageWrapper><SuperAdminLoginPage /></PageWrapper>} />
+              <Route path="/view-menu" element={<PageWrapper><ViewMenu /></PageWrapper>} />
 
               {/* --- 2. User/Public Routes --- */}
               <Route element={<MainLayout />}>
@@ -199,7 +200,7 @@ const AppContent = () => {
                 <Route path="menu-list" element={<PageWrapper><MenuList /></PageWrapper>} />
                 <Route path="add-table" element={<PageWrapper><AddTable /></PageWrapper>} />
                 <Route path="table-list" element={<PageWrapper><TableList /></PageWrapper>} />
-                <Route path="view-menu" element={<PageWrapper><ViewMenu /></PageWrapper>} />
+                
               </Route>
 
               {/* --- 5. 404 Route --- */}
