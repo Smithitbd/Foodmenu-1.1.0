@@ -684,7 +684,7 @@ const ViewMenuPage = () => {
             </div>
           ) : (
             <>
-              <motion.div layout className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+              <motion.div layout className="grid grid-cols-2 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
                 <AnimatePresence mode="popLayout">
                   {shownItems.map(p => (
                     <ProductCard
